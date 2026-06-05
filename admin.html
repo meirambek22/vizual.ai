@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vizual AI — Админка</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+  :root{--bg:#0a0e1a;--panel:#121829;--panel2:#1a2238;--ink:#eef2ff;--muted:#8b96b5;--line:#283150;--acc:#ffb020;--acc2:#3b82f6;--ok:#22c55e}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;padding:24px}
+  .wrap{max-width:1000px;margin:0 auto}
+  h1{font-size:22px;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+  .gbtn{background:linear-gradient(135deg,var(--acc),#ff7a00);border:none;color:#1a1200;font-weight:800;font-size:15px;padding:12px 22px;border-radius:12px;cursor:pointer}
+  .center{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;gap:14px;text-align:center}
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:12px 14px;text-align:left;font-size:14px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px}
+  tr:last-child td{border-bottom:none}
+  .sparks{font-weight:800;color:var(--acc)}
+  .add{display:flex;gap:6px;align-items:center}
+  .add input{width:70px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px;font-size:13px}
+  .add button{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:13px;font-weight:700}
+  .add button:hover{border-color:var(--acc2)}
+  .quick button{background:transparent;border:1px solid var(--line);color:var(--acc);border-radius:8px;padding:7px 9px;cursor:pointer;font-size:12px;font-weight:700;margin-left:4px}
+  .quick button:hover{background:var(--panel2)}
+  .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .muted{color:var(--muted);font-size:12px}
+  .logout{background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:8px 14px;border-radius:20px;cursor:pointer;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="loginView" class="center" style="display:none">
+    <h1>Vizual AI — Админка</h1>
+    <p class="muted">Доступ только для администратора</p>
+    <button class="gbtn" onclick="login()">Войти через Google</button>
+    <p id="denied" class="muted" style="color:#ef4444;display:none">Этот аккаунт не админ. Войдите под админским Google.</p>
+  </div>
+
+  <div id="adminView" style="display:none">
+    <div class="top">
+      <div><h1>Пользователи Vizual AI</h1><div class="sub">Начисляй искры после оплаты по WhatsApp</div></div>
+      <button class="logout" onclick="logout()">Выйти</button>
+    </div>
+    <table>
+      <thead><tr><th>Email</th><th>Имя</th><th>Искры</th><th>Начислить</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="4" class="muted">Загрузка…</td></tr></tbody>
+    </table>
+    <p class="muted" style="margin-top:12px">Тарифы: 30 — 3 990 ₸ · 50 — 7 990 ₸ · 100 — 13 990 ₸</p>
+  </div>
+</div>
+
+<script>
+// ВСТАВЬ тот же firebaseConfig, что и в vizual.html:
+const firebaseConfig = {
+  apiKey: "AIzaSyBNCUIcrIyvANdZ4P-CJEn_EwlyMQM_Jus",
+  authDomain: "vizual-ai.firebaseapp.com",
+  projectId: "vizual-ai",
+  storageBucket: "vizual-ai.firebasestorage.app",
+  messagingSenderId: "173761098005",
+  appId: "1:173761098005:web:d0c3467065686ef31a791c"
+};
+const ADMIN_EMAIL = "meirambekuzakbaev4@gmail.com"; // твой Google-email — только он видит админку
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+function login(){ auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert(e.message)); }
+function logout(){ auth.signOut(); }
+
+auth.onAuthStateChanged(async (u)=>{
+  const loginView=document.getElementById('loginView'), adminView=document.getElementById('adminView');
+  if(u && u.email===ADMIN_EMAIL){
+    loginView.style.display='none'; adminView.style.display='block';
+    loadUsers();
+  }else if(u){
+    loginView.style.display='flex'; adminView.style.display='none';
+    document.getElementById('denied').style.display='block';
+  }else{
+    loginView.style.display='flex'; adminView.style.display='none';
+    document.getElementById('denied').style.display='none';
+  }
+});
+
+async function loadUsers(){
+  const rows=document.getElementById('rows');
+  rows.innerHTML='<tr><td colspan="4" class="muted">Загрузка…</td></tr>';
+  try{
+    const snap=await db.collection('users').orderBy('createdAt','desc').get();
+    if(snap.empty){ rows.innerHTML='<tr><td colspan="4" class="muted">Пока никто не зарегистрировался</td></tr>'; return; }
+    rows.innerHTML='';
+    snap.forEach(d=>{
+      const u=d.data();
+      const tr=document.createElement('tr');
+      tr.innerHTML=`
+        <td>${u.email||''}</td>
+        <td>${u.name||''}</td>
+        <td class="sparks" id="s_${d.id}">${u.sparks||0}</td>
+        <td>
+          <div class="add">
+            <input type="number" id="i_${d.id}" placeholder="кол-во">
+            <button onclick="addSparks('${d.id}')">+ начислить</button>
+            <span class="quick">
+              <button onclick="quick('${d.id}',30)">+30</button>
+              <button onclick="quick('${d.id}',50)">+50</button>
+              <button onclick="quick('${d.id}',100)">+100</button>
+            </span>
+          </div>
+        </td>`;
+      rows.appendChild(tr);
+    });
+  }catch(e){
+    rows.innerHTML='<tr><td colspan="4" class="muted" style="color:#ef4444">Ошибка: '+e.message+'</td></tr>';
+  }
+}
+
+async function changeSparks(uid,amount){
+  if(!amount||isNaN(amount))return;
+  await db.collection('users').doc(uid).update({ sparks: firebase.firestore.FieldValue.increment(amount) });
+  const cell=document.getElementById('s_'+uid);
+  const cur=parseInt(cell.textContent)||0;
+  cell.textContent=cur+amount;
+}
+function addSparks(uid){ const v=parseInt(document.getElementById('i_'+uid).value); changeSparks(uid,v); document.getElementById('i_'+uid).value=''; }
+function quick(uid,n){ changeSparks(uid,n); }
+window.login=login;window.logout=logout;window.addSparks=addSparks;window.quick=quick;
+</script>
+</body>
+</html>

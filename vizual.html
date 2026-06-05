@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vizual AI — Генератор карточек</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#0a0e1a;--panel:#121829;--panel2:#1a2238;
+    --ink:#eef2ff;--muted:#8b96b5;--line:#283150;
+    --acc:#ffb020;--acc2:#3b82f6;--ok:#22c55e;--err:#ef4444;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:radial-gradient(1200px 600px at 80% -10%,#182038 0%,transparent 60%),radial-gradient(900px 500px at -10% 110%,#1b2540 0%,transparent 55%),var(--bg);color:var(--ink);min-height:100vh;padding:24px}
+  .wrap{max-width:1180px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px}
+  .logo{display:flex;align-items:center;gap:12px;font-size:24px;font-weight:800;letter-spacing:.5px}
+  .logo .spark{width:30px;height:30px;background:linear-gradient(135deg,var(--acc),#ff7a00);clip-path:polygon(50% 0,61% 35%,100% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,0 35%,39% 35%)}
+  .cnt{background:var(--panel2);border:1px solid var(--line);padding:8px 16px;border-radius:30px;font-weight:700;font-size:14px}
+  .cnt b{color:var(--acc)}
+  .grid{display:grid;grid-template-columns:390px 1fr;gap:20px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:1.4px;color:var(--muted);margin-bottom:14px;font-weight:700}
+  label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;font-weight:600}
+  input[type=text],input[type=password],textarea,select{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:11px 13px;font-size:14px;font-family:inherit;outline:none;transition:.15s}
+  input:focus,textarea:focus,select:focus{border-color:var(--acc2)}
+  textarea{resize:vertical;min-height:84px;line-height:1.45}
+  .hint{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.4}
+  .drop{border:2px dashed var(--line);border-radius:12px;padding:26px 14px;text-align:center;cursor:pointer;transition:.15s;background:var(--panel2)}
+  .drop:hover{border-color:var(--acc2);background:#1e2742}
+  .drop.has{padding:8px;border-style:solid}
+  .drop img{max-width:100%;max-height:200px;border-radius:8px;display:block;margin:0 auto}
+  .drop .ph{color:var(--muted);font-size:13px}
+  .drop .ph b{color:var(--ink);display:block;font-size:15px;margin-bottom:4px}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1}
+  button.go{width:100%;margin-top:18px;background:linear-gradient(135deg,var(--acc),#ff7a00);border:none;color:#1a1200;font-weight:800;font-size:15px;padding:14px;border-radius:12px;cursor:pointer;transition:.15s;letter-spacing:.3px}
+  button.go:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  button.go:disabled{opacity:.5;cursor:not-allowed;transform:none}
+  .keys{margin-top:8px}
+  .keys summary{cursor:pointer;font-size:12px;color:var(--muted);user-select:none;padding:6px 0}
+  .keys summary:hover{color:var(--ink)}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;display:flex;flex-direction:column;min-height:560px}
+  .preview{flex:1;display:flex;align-items:center;justify-content:center;background:repeating-conic-gradient(#161d30 0% 25%,#131a2b 0% 50%) 0/28px 28px;border-radius:12px;overflow:hidden;position:relative}
+  .preview img{max-width:100%;max-height:620px;border-radius:8px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+  .preview .empty{color:var(--muted);text-align:center;font-size:14px;padding:30px}
+  .preview .empty .big{font-size:46px;margin-bottom:12px;opacity:.5}
+  .log{margin-top:14px;font-size:12px;color:var(--muted);font-family:ui-monospace,monospace;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:70px;max-height:160px;overflow:auto;white-space:pre-wrap;line-height:1.5}
+  .log .ok{color:var(--ok)}.log .er{color:var(--err)}.log .wa{color:var(--acc)}
+  .acts{display:flex;gap:10px;margin-top:12px}
+  .acts button{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:11px;border-radius:10px;cursor:pointer;font-weight:600;font-size:13px;transition:.15s}
+  .acts button:hover:not(:disabled){border-color:var(--acc2)}
+  .acts button:disabled{opacity:.4;cursor:not-allowed}
+  .spin{width:44px;height:44px;border:4px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:sp 1s linear infinite;position:absolute}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .carousel{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  .carousel video{max-width:100%;max-height:620px;border-radius:8px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+  .nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;background:rgba(0,0,0,.55);border:1px solid var(--line);color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;transition:.15s}
+  .nav:hover{background:var(--acc);color:#1a1200}
+  .nav.prev{left:10px}.nav.next{right:10px}
+  .dots{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:7px;z-index:5}
+  .dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.35);cursor:pointer;transition:.15s}
+  .dot.active{background:var(--acc);width:22px;border-radius:5px}
+  .tag{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;z-index:5}
+  .note{background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(124,58,237,.12));border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:10px 12px;margin-top:14px;font-size:11px;line-height:1.5;color:var(--ink)}
+  .note b{color:#a78bfa}
+  .vbtn{background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:8px 14px;border-radius:20px;font-weight:700;font-size:13px;cursor:pointer}
+  .vbtn:hover{border-color:var(--acc2)}
+  .vbtn b{color:var(--acc)}
+  .overlay{position:fixed;inset:0;background:rgba(5,8,18,.88);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .authcard,.modal{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:30px;max-width:420px;width:100%;text-align:center}
+  .authcard p{color:var(--muted);margin:8px 0 22px;font-size:14px}
+  .gbtn{background:linear-gradient(135deg,var(--acc),#ff7a00);border:none;color:#1a1200;font-weight:800;font-size:15px;padding:13px 22px;border-radius:12px;cursor:pointer;width:100%}
+  .gbtn:hover{filter:brightness(1.08)}
+  .modal h3{font-size:20px;margin-bottom:6px}
+  .modal>p{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .tiers{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+  .tier{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .tier .t-n{font-weight:800;font-size:16px}
+  .tier .t-p{color:var(--acc);font-weight:800;margin-left:auto;margin-right:12px}
+  .tier .gbtn{width:auto;padding:9px 18px;font-size:14px}
+  .muted{color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+
+<!-- Экран входа -->
+<div id="authOverlay" class="overlay" style="display:none">
+  <div class="authcard">
+    <div class="logo" style="justify-content:center;font-size:26px"><span class="spark"></span> Vizual AI</div>
+    <p>Генератор карточек для маркетплейсов.<br>Войдите, чтобы начать.</p>
+    <button class="gbtn" onclick="vaLogin()">Войти через Google</button>
+  </div>
+</div>
+
+<!-- Тарифы -->
+<div id="tariffModal" class="overlay" style="display:none">
+  <div class="modal">
+    <h3>Тарифы Vizual AI</h3>
+    <p>1 искра = 1 генерация (вся карусель). Оплата через WhatsApp — после оплаты начислим искры на ваш аккаунт.</p>
+    <div class="tiers">
+      <div class="tier"><span class="t-n">30 искр</span><span class="t-p">3 990 ₸</span><button class="gbtn" onclick="vaBuy('30 искр','3 990 тенге')">Купить</button></div>
+      <div class="tier"><span class="t-n">50 искр</span><span class="t-p">7 990 ₸</span><button class="gbtn" onclick="vaBuy('50 искр','7 990 тенге')">Купить</button></div>
+      <div class="tier"><span class="t-n">100 искр</span><span class="t-p">13 990 ₸</span><button class="gbtn" onclick="vaBuy('100 искр','13 990 тенге')">Купить</button></div>
+    </div>
+    <button class="vbtn" onclick="vaCloseTariffs()">Закрыть</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <header>
+    <div class="logo"><span class="spark"></span> Vizual AI</div>
+    <div id="userBox" style="display:none;align-items:center;gap:10px">
+      <button class="vbtn" onclick="vaOpenTariffs()">⚡ Искры: <b id="sparkCount">0</b></button>
+      <span id="uEmail" class="muted"></span>
+      <button class="vbtn" onclick="vaLogout()">Выйти</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h2>1 · Загрузи фото товара</h2>
+
+      <div class="drop" id="drop">
+        <div class="ph" id="ph"><b>Нажми или перетащи фото</b>JPG / PNG / WEBP</div>
+        <input type="file" id="file" accept="image/*" hidden>
+      </div>
+
+      <label>Текст карточки <span style="color:var(--muted)">(по желанию)</span></label>
+      <textarea id="userText" placeholder="Напиши свой текст — заголовок, слоган, преимущества, объём…
+Если пусто — AI напишет всё сам по фото."></textarea>
+      <div class="hint">Есть текст — используем твой. Пусто — AI придумает сам.</div>
+
+      <div class="row">
+        <div>
+          <label>Маркетплейс</label>
+          <select id="mkt"><option>WB</option><option>OZON</option><option>Kaspi</option><option>Halyk</option></select>
+        </div>
+        <div>
+          <label>Размер</label>
+          <select id="size"><option value="1080x1080">Квадрат 1:1</option><option value="1080x1440">Вертикаль 3:4</option></select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Сколько фото (карусель)</label>
+          <select id="count"><option value="1">1 фото</option><option value="2">2 фото</option><option value="3" selected>3 фото</option><option value="4">4 фото</option><option value="5">5 фото</option></select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Режим дизайна</label>
+          <select id="bgMode">
+            <option value="creative">Креатив — ИИ рисует всё</option>
+            <option value="scene">Сцена + чёткий текст</option>
+            <option value="gradient">Чистый — товар не меняется</option>
+          </select>
+        </div>
+        <div>
+          <label>Пожелание к стилю <span style="color:var(--muted)">(по желанию)</span></label>
+          <input type="text" id="wish" placeholder="премиум, ярко, тропики">
+        </div>
+      </div>
+      <div class="hint"><b>Креатив</b> — ИИ рисует каждую карточку (красиво, но платная каждая, текст с риском). <b>Сцена</b> — 1 фон от ИИ на всю карусель + чёткий текст (дешевле всего ~$0.08 за набор). <b>Чистый</b> — товар 100% не меняется.</div>
+
+      <details class="keys">
+        <summary>⚙ API-ключ Claude (вставь один раз)</summary>
+        <label>Anthropic (Claude)</label>
+        <input type="password" id="kClaude" placeholder="sk-ant-...">
+        <div class="hint">FAL-ключ ставится НЕ здесь, а в <b>proxy.js → .env</b>: <code>FAL_KEY=xxxx:yyyy</code>. В браузер его не вставляем.</div>
+      </details>
+
+      <button class="go" id="go">✦ Создать карточку</button>
+
+      <div class="note"><b>Перед запуском:</b> включи бэкенд — в папке проекта <code>node proxy.js</code> (должно написать «FAL_KEY: OK»).</div>
+    </div>
+
+    <div class="stage">
+      <h2>Результат</h2>
+      <div class="preview" id="preview">
+        <div class="empty"><div class="big">🖼</div>Здесь появится готовая карточка</div>
+      </div>
+      <div class="log" id="log">Готов. Загрузи фото → нажми «Создать карточку».</div>
+      <div class="acts">
+        <button id="dl" disabled>⬇ Скачать всё</button>
+        <button id="again" disabled>↻ Ещё раз ($0)</button>
+        <button id="newbg" disabled>🎨 Новый фон</button>
+      </div>
+    </div>
+  </div>
+</div>
+<canvas id="cv" style="display:none"></canvas>
+
+<script>
+/* ===== Firebase: вход + искры + тарифы ===== */
+// ВСТАВЬ сюда firebaseConfig из консоли Firebase (Project settings → Your apps → Web):
+const firebaseConfig = {
+  apiKey: "AIzaSyBNCUIcrIyvANdZ4P-CJEn_EwlyMQM_Jus",
+  authDomain: "vizual-ai.firebaseapp.com",
+  projectId: "vizual-ai",
+  storageBucket: "vizual-ai.firebasestorage.app",
+  messagingSenderId: "173761098005",
+  appId: "1:173761098005:web:d0c3467065686ef31a791c"
+};
+const WHATSAPP = "77000000000"; // ТВОЙ номер WhatsApp для оплаты, без + и пробелов
+
+firebase.initializeApp(firebaseConfig);
+const _auth = firebase.auth();
+const _db = firebase.firestore();
+window.VA = { user:null, sparks:0 };
+
+function _updSparks(){ const e=document.getElementById('sparkCount'); if(e) e.textContent=window.VA.sparks; }
+
+_auth.onAuthStateChanged(async (u)=>{
+  if(u){
+    window.VA.user=u;
+    const ref=_db.collection('users').doc(u.uid);
+    let snap;
+    try{ snap=await ref.get(); }catch(e){ console.error(e); }
+    if(snap && !snap.exists){
+      await ref.set({ email:u.email, name:u.displayName||'', sparks:0, plan:'', createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+      window.VA.sparks=0;
+    }else if(snap){
+      window.VA.sparks=snap.data().sparks||0;
+    }
+    document.getElementById('authOverlay').style.display='none';
+    document.getElementById('userBox').style.display='flex';
+    document.getElementById('uEmail').textContent=u.email;
+    _updSparks();
+  }else{
+    window.VA.user=null;
+    document.getElementById('authOverlay').style.display='flex';
+    document.getElementById('userBox').style.display='none';
+  }
+});
+
+window.vaLogin=()=>_auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert('Вход не удался: '+e.message));
+window.vaLogout=()=>_auth.signOut();
+window.vaOpenTariffs=()=>{ document.getElementById('tariffModal').style.display='flex'; };
+window.vaCloseTariffs=()=>{ document.getElementById('tariffModal').style.display='none'; };
+window.vaRefreshSparks=async()=>{ if(!window.VA.user)return; const s=await _db.collection('users').doc(window.VA.user.uid).get(); window.VA.sparks=s.data().sparks||0; _updSparks(); };
+window.vaSpendSpark=async()=>{
+  if(!window.VA.user)return;
+  await _db.collection('users').doc(window.VA.user.uid).update({ sparks:firebase.firestore.FieldValue.increment(-1) });
+  window.VA.sparks=Math.max(0,window.VA.sparks-1); _updSparks();
+};
+window.vaBuy=(plan,price)=>{
+  const email=window.VA.user?window.VA.user.email:'';
+  const text=encodeURIComponent(`Здравствуйте! Хочу купить тариф Vizual AI: ${plan} за ${price}. Мой email: ${email}`);
+  window.open(`https://wa.me/${WHATSAPP}?text=${text}`,'_blank');
+};
+</script>
+
+<script>
+const PROXY = 'http://localhost:3001';
+const $ = s => document.querySelector(s);
+const logEl = $('#log');
+function log(msg,cls){logEl.innerHTML+=`\n<span class="${cls||''}">${msg}</span>`;logEl.scrollTop=logEl.scrollHeight;}
+function clearLog(){logEl.innerHTML='';}
+
+// ключ Claude (без захардкоженного дефолта!)
+const kClaudeEl = $('#kClaude');
+kClaudeEl.value = localStorage.getItem('kClaude')||'';
+kClaudeEl.addEventListener('input',()=>localStorage.setItem('kClaude',kClaudeEl.value));
+
+// загрузка фото
+let imgB64 = null;
+const drop=$('#drop'),fileInp=$('#file');
+drop.addEventListener('click',()=>fileInp.click());
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.style.borderColor='#3b82f6'});
+drop.addEventListener('dragleave',()=>drop.style.borderColor='');
+drop.addEventListener('drop',e=>{e.preventDefault();drop.style.borderColor='';if(e.dataTransfer.files[0])loadPhoto(e.dataTransfer.files[0])});
+fileInp.addEventListener('change',e=>{if(e.target.files[0])loadPhoto(e.target.files[0])});
+function loadPhoto(f){
+  const r=new FileReader();
+  r.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      // Сжимаем большое фото с телефона до ~1400px: товар/этикетка остаются чёткими,
+      // выходная карточка не меняется, но входные токены (и счёт fal/Claude) меньше.
+      const MAX=1400;
+      let w=img.width,h=img.height;
+      if(Math.max(w,h)>MAX){const k=MAX/Math.max(w,h);w=Math.round(w*k);h=Math.round(h*k);}
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      imgB64=c.toDataURL('image/jpeg',0.9);
+      sceneCache=null; // новое фото → старый фон не годится
+      drop.classList.add('has');$('#ph').outerHTML=`<img src="${imgB64}" id="ph">`;
+    };
+    img.onerror=()=>{imgB64=r.result;drop.classList.add('has');$('#ph').outerHTML=`<img src="${imgB64}" id="ph">`;};
+    img.src=r.result;
+  };
+  r.readAsDataURL(f);
+}
+
+function hexToRgb(hex){const h=(hex||'#0033aa').replace('#','');return{r:parseInt(h.slice(0,2),16)||0,g:parseInt(h.slice(2,4),16)||51,b:parseInt(h.slice(4,6),16)||170};}
+function wrapText(ctx,text,maxW){const w=String(text).split(' ');const L=[];let c='';for(const x of w){const t=c?c+' '+x:x;if(ctx.measureText(t).width>maxW&&c){L.push(c);c=x;}else c=t;}if(c)L.push(c);return L;}
+function loadImg(src){return new Promise((res,rej)=>{const i=new Image();i.crossOrigin='anonymous';i.onload=()=>res(i);i.onerror=rej;i.src=src;});}
+function drawCover(ctx,img,x,y,w,h){const ir=img.width/img.height,r=w/h;let dw,dh;if(ir>r){dh=h;dw=h*ir;}else{dw=w;dh=w/ir;}ctx.drawImage(img,x+(w-dw)/2,y+(h-dh)/2,dw,dh);}
+
+// ===== ШАГ 1: Claude (Haiku) — N разных слайдов =====
+async function callClaude(key,mkt,wish,userText,count,aspect){
+  const data=imgB64.replace(/^data:image\/\w+;base64,/,'');
+  let mt='image/jpeg';
+  if(imgB64.includes('image/png'))mt='image/png';
+  if(imgB64.includes('image/webp'))mt='image/webp';
+
+  const hasText=userText&&userText.trim().length>3;
+  const textRule=hasText
+    ?`ВАЖНО: пользователь задал свой текст. Используй ТОЛЬКО его, ничего не выдумывай сверх. Раскидай его по ${count} слайдам по смыслу.\nТЕКСТ ПОЛЬЗОВАТЕЛЯ:\n"""${userText.trim()}"""`
+    :`Текст не задан — придумай сам по фото, продающий и грамотный.`;
+
+  const prompt=`Маркетплейс: ${mkt}. Стиль: "${wish||'премиум, ярко'}". Формат: ${aspect}.
+Нужно ${count} РАЗНЫХ слайдов карусели. Бренд/категория одинаковые везде, но КАЖДЫЙ слайд про своё и со своим слоганом:
+слайд 1 — герой/главное, 2 — ключевая выгода, 3 — для кого/применение, 4 — качество/состав, 5 — акция/призыв.
+${textRule}
+
+Верни ТОЛЬКО JSON:
+{
+ "productCategory":"категория ЗАГЛАВНЫМИ",
+ "brand":"бренд или модель ЗАГЛАВНЫМИ",
+ "mainColor":"точный HEX цвета товара",
+ "accentColor":"HEX яркий акцент",
+ "slides":[
+   {
+     "headline":"крупный заголовок ЗАГЛАВНЫМИ",
+     "subHeadline":"короткий подзаголовок/вкус ЗАГЛАВНЫМИ или пусто",
+     "tagline":"слоган 3-6 слов — СВОЙ на каждом слайде",
+     "features":[{"icon":"эмодзи","title":"ЗАГОЛОВОК","desc":"кратко"},{"icon":"эмодзи","title":"ЗАГОЛОВОК","desc":"кратко"},{"icon":"эмодзи","title":"ЗАГОЛОВОК","desc":"кратко"}],
+     "cta":"призыв 2-4 слова",
+     "ctaButton":"кнопка 2-3 слова",
+     "volumeBadge":"объём/размер или пусто",
+     "volumeLabel":"подпись или пусто",
+     "bottomIcons":[{"title":"КОРОТКО","desc":"кратко"},{"title":"КОРОТКО","desc":"кратко"},{"title":"КОРОТКО","desc":"кратко"},{"title":"КОРОТКО","desc":"кратко"}],
+     "imagePrompt":"English. Design a COMPLETE, beautiful ${aspect} marketplace product card, your own creative layout. Keep the product from the reference image 100% identical (shape, colors, logo, real label) — do not redraw the product. Render ON the card EXACTLY this text with PERFECT spelling (Cyrillic/Kazakh, do not alter any letters): category tag <productCategory>; big title <headline>; subtitle <subHeadline>; slogan <tagline>; three short feature lines from features; CTA button <cta>. Vivid premium e-commerce style, clean readable typography, palette around <mainColor> with <accentColor> accents, dynamic background fitting the product, photorealistic. Put the SAME exact Russian text, not English. 130 words."
+   }
+ ]
+}
+Сделай РОВНО ${count} слайдов в массиве "slides". В каждом imagePrompt подставь реальные тексты этого слайда.`;
+
+  const r=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'x-api-key':key,'anthropic-version':'2023-06-01','content-type':'application/json','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:Math.min(8000,1500+count*1100),messages:[{role:'user',content:[
+      {type:'image',source:{type:'base64',media_type:mt,data}},
+      {type:'text',text:prompt}
+    ]}]})
+  });
+  if(!r.ok)throw new Error('Claude '+r.status+': '+(await r.text()).slice(0,120));
+  const j=await r.json();
+  let t=j.content[0].text.trim().replace(/```json\n?/gi,'').replace(/```\n?/g,'').trim();
+  const m=t.match(/\{[\s\S]*\}/);
+  const info=JSON.parse(m?m[0]:t);
+  if(!info.slides||!info.slides.length){
+    // подстраховка: старый формат → один слайд
+    info.slides=[{headline:info.headline,subHeadline:info.subHeadline,tagline:info.tagline,features:info.features,cta:info.cta,ctaButton:info.ctaButton,volumeBadge:info.volumeBadge,volumeLabel:info.volumeLabel,bottomIcons:info.bottomIcons,imagePrompt:info.scenePrompt}];
+  }
+  return info;
+}
+
+// фиксированный промпт сцены для режима "Сцена" (товар не перерисовываем)
+function buildScenePrompt(info){
+  return `English. Premium e-commerce hero scene. CRITICAL: keep the product from the reference image 100% identical — same shape, colors, logo and ALL label text, do NOT redraw it. Product on the RIGHT, keep the LEFT third calm/empty for text. Soft top-right studio light, condensation, a dynamic color-matched splash, 2 matching props/fruit, clean glossy surface with reflection. Palette around ${info.mainColor||'#0033aa'}. Photorealistic, advertising quality, cohesive background. 80 words.`;
+}
+
+// ===== fal.ai через proxy =====
+async function falCutout(imageDataUri){
+  const r=await fetch(`${PROXY}/api/cutout`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image:imageDataUri})});
+  if(!r.ok)throw new Error('cutout: '+(await r.text()).slice(0,160));
+  return (await r.json()).url;
+}
+async function falScene(prompt,refImages,cheap){
+  const r=await fetch(`${PROXY}/api/scene`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({prompt,images:refImages,cheap:!!cheap})});
+  if(!r.ok)throw new Error('scene: '+(await r.text()).slice(0,160));
+  return (await r.json()).url;
+}
+
+// ===== фон для режима "градиент" =====
+function buildBg(info,W,H){
+  const rgb=hexToRgb(info.mainColor);
+  const c=document.createElement('canvas');c.width=W;c.height=H;
+  const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,W,H);
+  g.addColorStop(0,`rgb(${Math.min(255,rgb.r+40)},${Math.min(255,rgb.g+25)},${Math.min(255,rgb.b+50)})`);
+  g.addColorStop(.5,`rgb(${rgb.r},${rgb.g},${rgb.b})`);
+  g.addColorStop(1,`rgb(${Math.max(0,rgb.r-50)},${Math.max(0,rgb.g-35)},${Math.max(0,rgb.b-25)})`);
+  x.fillStyle=g;x.fillRect(0,0,W,H);
+  for(let i=0;i<28;i++){
+    const px=Math.random()*W,py=Math.random()*H,r=15+Math.random()*90;
+    const b=x.createRadialGradient(px,py,0,px,py,r);
+    b.addColorStop(0,`rgba(255,255,200,${.04+Math.random()*.09})`);b.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=b;x.fillRect(0,0,W,H);
+  }
+  for(let i=0;i<6;i++){
+    const lx=W*(.15+Math.random()*.75);
+    const lg=x.createLinearGradient(lx-40,0,lx+40,H);
+    lg.addColorStop(0,'rgba(255,255,255,.07)');lg.addColorStop(.5,'rgba(255,255,255,.02)');lg.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=lg;x.fillRect(lx-40,0,80,H);
+  }
+  return c;
+}
+
+// ===== ГЛАВНАЯ ГЕНЕРАЦИЯ =====
+let GALLERY=[]; let CUR=0;
+let sceneCache=null; // {key, hero} — запомненный AI-фон, чтобы не платить за повтор
+
+async function generate(forceNewBg=false){
+  const kClaude=$('#kClaude').value.trim();
+  if(!window.VA||!window.VA.user){ window.vaLogin&&window.vaLogin(); return; }
+  if(!imgB64){alert('Загрузи фото товара');return;}
+  if(!kClaude){alert('Вставь ключ Claude в ⚙ настройках');return;}
+  await window.vaRefreshSparks(); // свежий баланс
+  if(window.VA.sparks<=0){ window.vaOpenTariffs(); return; }
+
+  const[W,H]=$('#size').value.split('x').map(Number);
+  const mkt=$('#mkt').value,wish=$('#wish').value,userText=$('#userText').value;
+  const count=parseInt($('#count').value)||1;
+  const bgMode=$('#bgMode').value;
+
+  $('#go').disabled=true;$('#dl').disabled=true;$('#again').disabled=true;$('#newbg').disabled=true;
+  GALLERY=[];CUR=0;clearLog();
+  $('#preview').innerHTML='<div class="spin"></div>';
+
+  try{
+    const aspect = (W===H) ? 'square 1:1' : (W<H ? 'vertical 4:5' : 'horizontal');
+    log(`[1] Claude придумывает ${count} слайдов…`);
+    const info=await callClaude(kClaude,mkt,wish,userText,count,aspect);
+    const slides=(info.slides&&info.slides.length)?info.slides:[info];
+    log(`  ${info.brand||info.productCategory||''} · ${slides.length} слайдов ✓`,'ok');
+
+    let cutoutUrl=null, sharedHero=null;
+    if(bgMode==='gradient'){
+      log('[2] Вырезаю фон (товар не меняется)…');
+      cutoutUrl=await falCutout(imgB64);
+      log('  вырез готов ✓','ok');
+    }else if(bgMode==='scene'){
+      const key=bgMode+'|'+W+'x'+H+'|'+imgB64.length;
+      if(!forceNewBg && sceneCache && sceneCache.key===key){
+        sharedHero=sceneCache.hero;
+        log('[2] Фон взят из кэша — $0 ✓','ok');
+      }else{
+        log('[2] ИИ рисует сцену (1 раз на всю карусель)…','wa');
+        sharedHero=await falScene(buildScenePrompt(info), [imgB64], true); // cheap=Seedream
+        sceneCache={key,hero:sharedHero};
+        log('  сцена готова ✓','ok');
+      }
+    }
+
+    log(`[3] Собираю ${count} карточек…`);
+    for(let i=0;i<count;i++){
+      const slide=slides[i%slides.length];
+      const sInfo=Object.assign({},info,slide); // цвета+категория + поля слайда
+      let url;
+      if(bgMode==='creative'){
+        log(`  ИИ рисует карточку ${i+1}/${count}…`,'wa');
+        url=await falScene(slide.imagePrompt, [imgB64]); // вся карточка от ИИ (платная каждая)
+      }else if(bgMode==='scene'){
+        url=await composeCard(sharedHero,'scene',sInfo,W,H,i); // 1 картинка, разный текст+кадр на слайд
+      }else{
+        url=await composeCard(cutoutUrl,'cutout',sInfo,W,H,i);
+      }
+      GALLERY.push({type:'img',url});
+      log(`  карточка ${i+1}/${count} ✓`,'ok');
+      renderGallery();
+    }
+
+    await window.vaSpendSpark(); // 1 искра за генерацию (вся карусель)
+    log('ГОТОВО ✓  (−1 искра, осталось '+window.VA.sparks+')','ok');
+    $('#dl').disabled=false;$('#again').disabled=false;$('#newbg').disabled=false;
+  }catch(e){
+    log('Ошибка: '+e.message,'er');
+    $('#preview').innerHTML='<div class="empty"><div class="big">⚠</div>'+e.message+'</div>';
+  }finally{
+    $('#go').disabled=false;
+  }
+}
+
+// ===== Карусель =====
+function renderGallery(){
+  if(!GALLERY.length)return;
+  if(CUR>=GALLERY.length)CUR=GALLERY.length-1;
+  const it=GALLERY[CUR];
+  const media=it.type==='video'
+    ? `<video src="${it.url}" controls autoplay loop muted></video>`
+    : `<img src="${it.url}">`;
+  const dots=GALLERY.map((g,i)=>`<div class="dot ${i===CUR?'active':''}" onclick="goTo(${i})"></div>`).join('');
+  const tag=it.type==='video'?'🎬 Видео':`Фото ${CUR+1}`;
+  $('#preview').innerHTML=`
+    <div class="carousel">
+      <span class="tag">${tag}</span>
+      ${GALLERY.length>1?'<button class="nav prev" onclick="goRel(-1)">‹</button><button class="nav next" onclick="goRel(1)">›</button>':''}
+      ${media}
+      ${GALLERY.length>1?`<div class="dots">${dots}</div>`:''}
+    </div>`;
+}
+window.goTo=i=>{CUR=i;renderGallery();};
+window.goRel=d=>{CUR=(CUR+d+GALLERY.length)%GALLERY.length;renderGallery();};
+
+// ===== СБОРКА КАРТОЧКИ =====
+// разное кадрирование одной и той же сцены на каждом слайде → визуальное разнообразие бесплатно
+function drawCoverVariant(ctx,img,W,H,vi){
+  const zoom=[1.0,1.18,1.10,1.25,1.08][vi%5];
+  const fx=[0.5,0.72,0.30,0.62,0.40][vi%5];
+  const fy=[0.5,0.42,0.58,0.40,0.60][vi%5];
+  const ir=img.width/img.height,r=W/H;
+  let dw,dh;
+  if(ir>r){dh=H*zoom;dw=dh*ir;}else{dw=W*zoom;dh=dw/ir;}
+  ctx.drawImage(img,(W-dw)*fx,(H-dh)*fy,dw,dh);
+}
+function shiftHue(hex,deg){
+  const h=(hex||'#f5a623').replace('#','');
+  let r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+  r/=255;g/=255;b/=255;
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let hh=0,s=0,l=(mx+mn)/2;
+  if(mx!==mn){const d=mx-mn;s=l>.5?d/(2-mx-mn):d/(mx+mn);
+    hh=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;hh/=6;}
+  hh=(hh*360+deg)%360;if(hh<0)hh+=360;hh/=360;
+  const hue2=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
+  let R,G,B;if(s===0){R=G=B=l;}else{const q=l<.5?l*(1+s):l+s-l*s,p=2*l-q;R=hue2(p,q,hh+1/3);G=hue2(p,q,hh);B=hue2(p,q,hh-1/3);}
+  const x=n=>('0'+Math.round(n*255).toString(16)).slice(-2);
+  return '#'+x(R)+x(G)+x(B);
+}
+
+async function composeCard(heroSrc,heroMode,info,W,H,vi=0){
+  const cv=$('#cv');cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');
+  const main=info.mainColor||'#0033aa';
+  // акцент чуть смещаем по тону на каждом слайде → не приедается
+  const accent=shiftHue(info.accentColor||'#f5a623',[0,18,-15,30,-28][vi%5]);
+
+  if(heroMode==='scene'){
+    // hero = товар уже в фотореалистичной сцене → кадрируем по-разному на каждом слайде
+    const hero=await loadImg(heroSrc);
+    drawCoverVariant(ctx,hero,W,H,vi);
+  }else{
+    // hero = вырезанная банка (прозрачный PNG) на градиенте
+    const bg=buildBg(info,W,H);ctx.drawImage(bg,0,0,W,H);
+    const prod=await loadImg(heroSrc);
+    const maxPW=W*0.58,maxPH=H*0.78;
+    let pw=prod.width,ph=prod.height;
+    const sc=Math.min(maxPW/pw,maxPH/ph);pw=Math.round(pw*sc);ph=Math.round(ph*sc);
+    const pLeft=Math.round(W*0.40),pBottom=Math.round(H*0.84),pTop=pBottom-ph;
+    // контактная тень
+    ctx.save();
+    const cs=ctx.createRadialGradient(pLeft+pw/2,pBottom,0,pLeft+pw/2,pBottom,pw*0.5);
+    cs.addColorStop(0,'rgba(0,0,0,.55)');cs.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=cs;ctx.beginPath();ctx.ellipse(pLeft+pw/2,pBottom,pw*0.46,22,0,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+    // drop shadow
+    ctx.save();ctx.globalAlpha=.3;ctx.filter='blur(16px)';
+    ctx.drawImage(prod,pLeft+16,pTop+20,pw,ph);
+    ctx.filter='none';ctx.globalAlpha=1;ctx.restore();
+    // товар
+    ctx.drawImage(prod,pLeft,pTop,pw,ph);
+    // rim блик
+    ctx.save();
+    const rim=ctx.createRadialGradient(pLeft+pw*0.72,pTop+ph*0.18,0,pLeft+pw*0.72,pTop+ph*0.18,pw*0.7);
+    rim.addColorStop(0,'rgba(255,255,255,.20)');rim.addColorStop(.5,'rgba(255,255,255,.04)');rim.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.globalCompositeOperation='screen';ctx.fillStyle=rim;ctx.fillRect(pLeft,pTop,pw,ph);ctx.restore();
+  }
+
+  drawTextLayer(ctx,info,W,H,accent,main);
+
+  return cv.toDataURL('image/jpeg',0.96);
+}
+
+// общий текстовый слой (одинаков для обоих режимов)
+function drawTextLayer(ctx,info,W,H,accent,main){
+  const textX=Math.round(W*0.05),textW=Math.round(W*0.42);
+  const botH=Math.round(H*0.13),accH=Math.round(H*0.08),botTop=H-botH-accH;
+
+  // затемнение слева (читаемость текста)
+  const ov=ctx.createLinearGradient(0,0,W*0.62,0);
+  ov.addColorStop(0,'rgba(0,0,25,.85)');ov.addColorStop(.55,'rgba(0,0,15,.38)');ov.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=ov;ctx.fillRect(0,0,W,botTop);
+
+  // виньетка
+  const vg=ctx.createRadialGradient(W/2,H/2,W*0.38,W/2,H/2,W*0.88);
+  vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.40)');
+  ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+
+  // нижние полосы
+  ctx.fillStyle='rgba(0,5,25,.97)';ctx.fillRect(0,botTop,W,botH);
+  ctx.fillStyle=accent;ctx.fillRect(0,H-accH,W,accH);
+
+  // CTA
+  ctx.fillStyle='#fff';ctx.font=`900 italic ${Math.round(W*0.034)}px Arial`;
+  ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.fillText((info.cta||'').toUpperCase()+'!',textX,H-Math.round(accH*0.5));
+
+  // кнопка
+  const bW=Math.round(W*0.36),bH2=Math.round(accH*0.70);
+  const bX=W-bW-Math.round(W*0.04),bY=H-accH+Math.round((accH-bH2)/2);
+  ctx.fillStyle='rgba(255,255,255,.96)';ctx.beginPath();ctx.roundRect(bX,bY,bW,bH2,30);ctx.fill();
+  ctx.fillStyle='#333';ctx.font=`bold ${Math.round(W*0.017)}px Arial`;ctx.textAlign='center';
+  ctx.fillText('♥  '+(info.ctaButton||'').toUpperCase(),bX+bW/2,bY+bH2/2);
+
+  // категория
+  ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.font=`bold ${Math.round(W*0.018)}px Arial`;
+  const ct=(info.productCategory||'').toUpperCase();const cw=ctx.measureText(ct).width+22;
+  ctx.fillStyle='rgba(120,35,185,.96)';ctx.beginPath();ctx.roundRect(textX,Math.round(H*0.042),cw,34,6);ctx.fill();
+  ctx.fillStyle='#fff';ctx.fillText(ct,textX+11,Math.round(H*0.042)+17);
+
+  // headline
+  ctx.textBaseline='top';ctx.fillStyle='#fff';ctx.font=`900 ${Math.round(W*0.118)}px Arial`;
+  ctx.shadowColor='rgba(0,0,0,.6)';ctx.shadowBlur=22;ctx.shadowOffsetY=3;
+  const hl=wrapText(ctx,(info.headline||'').toUpperCase(),textW+60);
+  hl.slice(0,2).forEach((l,i)=>ctx.fillText(l,textX,H*0.082+i*Math.round(W*0.120)));
+  ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+  let after=H*0.082+Math.min(hl.length,2)*Math.round(W*0.120)+8;
+
+  // sub badge (рисуем только если есть текст — иначе не оставляем пустую плашку)
+  const sub=(info.subHeadline||'').trim();
+  if(sub){
+    ctx.font=`bold ${Math.round(W*0.036)}px Arial`;
+    const st=sub.toUpperCase();const sw=Math.min(ctx.measureText(st).width+36,textW);
+    ctx.fillStyle=accent;ctx.fillRect(textX,after,sw,56);
+    ctx.fillStyle='#fff';ctx.fillText(st,textX+14,after+14);
+    after+=68;
+  }else{
+    after+=10;
+  }
+
+  // tagline
+  ctx.fillStyle='#fff';ctx.font=`bold ${Math.round(W*0.046)}px Arial`;
+  ctx.shadowColor='rgba(0,0,0,.5)';ctx.shadowBlur=12;
+  const tg=wrapText(ctx,info.tagline||'',textW+20);
+  tg.slice(0,2).forEach((l,i)=>ctx.fillText(l,textX,after+i*Math.round(W*0.054)));
+  ctx.shadowBlur=0;
+  after+=Math.min(tg.length,2)*Math.round(W*0.054)+20;
+  ctx.fillStyle='rgba(255,255,255,.35)';ctx.fillRect(textX,after,52,2);after+=18;
+
+  // features
+  const gap=Math.round(H*0.083);let fy=after;
+  (info.features||[]).slice(0,3).forEach((f,i)=>{
+    if(fy+50>botTop-130){fy+=gap;return;}
+    ctx.fillStyle=main;ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(textX+26,fy+26,26,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.font=`${Math.round(W*0.030)}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillStyle='#fff';ctx.fillText(f.icon||'●',textX+26,fy+26);ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.font=`bold ${Math.round(W*0.026)}px Arial`;
+    const tl=wrapText(ctx,f.title||'',textW-65);
+    tl.slice(0,2).forEach((l,j)=>ctx.fillText(l,textX+62,fy+4+j*Math.round(W*0.030)));
+    const dt=fy+4+Math.min(tl.length,2)*Math.round(W*0.030)+2;
+    ctx.fillStyle='rgba(255,255,255,.62)';ctx.font=`${Math.round(W*0.019)}px Arial`;
+    ctx.fillText(f.desc||'',textX+62,dt);
+    fy+=gap;
+  });
+
+  // volume badge
+  if(info.volumeBadge){
+    const vy=Math.min(fy+12,botTop-Math.round(H*0.135));
+    if(vy+Math.round(H*0.10)<botTop){
+      const vw=Math.round(W*0.32),vh=Math.round(H*0.10);
+      ctx.fillStyle='rgba(0,5,40,.90)';ctx.strokeStyle='rgba(255,255,255,.22)';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.roundRect(textX,vy,vw,vh,20);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#fff';ctx.font=`900 ${Math.round(W*0.052)}px Arial`;ctx.textBaseline='top';
+      ctx.fillText(info.volumeBadge,textX+16,vy+Math.round(vh*0.08));
+      ctx.fillStyle='rgba(255,255,255,.55)';ctx.font=`${Math.round(W*0.016)}px Arial`;
+      ctx.fillText(info.volumeLabel||'',textX+16,vy+Math.round(vh*0.65));
+    }
+  }
+
+  // bottom icons
+  const bi=info.bottomIcons||[];const colW=W/Math.max(bi.length,1);const sym=['▣','⚇','✦','◎'];
+  bi.slice(0,4).forEach((it,i)=>{
+    const cx=colW*i+colW/2;
+    if(i>0){ctx.strokeStyle='rgba(255,255,255,.14)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(colW*i,botTop+12);ctx.lineTo(colW*i,botTop+botH-12);ctx.stroke();}
+    ctx.fillStyle='rgba(255,255,255,.10)';ctx.strokeStyle=accent;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(cx,botTop+Math.round(botH*0.26),18,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle=accent;ctx.font=`${Math.round(W*0.022)}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(sym[i]||'●',cx,botTop+Math.round(botH*0.26));
+    ctx.fillStyle='#fff';ctx.font=`bold ${Math.round(W*0.013)}px Arial`;
+    ctx.fillText((it.title||'').toUpperCase(),cx,botTop+Math.round(botH*0.54));
+    ctx.fillStyle='rgba(255,255,255,.50)';ctx.font=`${Math.round(W*0.011)}px Arial`;
+    const dw=(it.desc||'').split(' ');
+    if(dw.length>2){ctx.fillText(dw.slice(0,2).join(' '),cx,botTop+Math.round(botH*0.72));ctx.fillText(dw.slice(2).join(' '),cx,botTop+Math.round(botH*0.88));}
+    else ctx.fillText(it.desc||'',cx,botTop+Math.round(botH*0.78));
+  });
+
+  ctx.textAlign='left';ctx.textBaseline='top';
+}
+
+$('#go').addEventListener('click',()=>generate(false));
+$('#again').addEventListener('click',()=>generate(false)); // тот же фон из кэша → $0 (режим Сцена)
+$('#newbg').addEventListener('click',()=>generate(true));  // принудительно новый AI-фон (платно)
+$('#dl').addEventListener('click',async()=>{
+  if(!GALLERY.length)return;
+  for(let i=0;i<GALLERY.length;i++){
+    const it=GALLERY[i];
+    const a=document.createElement('a');
+    if(it.type==='video'){a.href=it.url;a.download='vizual-video.mp4';a.target='_blank';}
+    else{a.href=it.url;a.download=`vizual-${i+1}.jpg`;}
+    a.click();
+    await new Promise(r=>setTimeout(r,400));
+  }
+});
+</script>
+</body>
+</html>
