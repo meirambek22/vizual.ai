@@ -761,7 +761,7 @@ async function aCreateUser(){
     const r=await fetch(`${PROXY_URL}/api/admin/create-user`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password,sparks,phone,adminKey:ADMIN_KEY})});
     const d=await r.json();if(d.error)throw new Error(d.error);
     const credBox=document.getElementById('aCredBox');
-    credBox.innerHTML=`<b>Данные для клиента:</b><br>🌐 vermillion-starlight-c3893a.netlify.app/vizual.html<br>📧 Логин: <b>${email}</b><br>🔑 Пароль: <b>${password}</b>${phone?'<br>📱 Телефон: <b>'+phone+'</b>':''}<br>⚡ Искры: <b>${sparks}</b>`;
+    credBox.innerHTML=`<b>Данные для клиента:</b><br>🌐 meirambek22.github.io/vizual.ai/<br>📧 Логин: <b>${email}</b><br>🔑 Пароль: <b>${password}</b>${phone?'<br>📱 Телефон: <b>'+phone+'</b>':''}<br>⚡ Искры: <b>${sparks}</b>`;
     credBox.style.display='block';
     aToast(`✅ Создан: ${email}`);aLoadUsers();
   }catch(e){errEl.textContent='Ошибка: '+e.message;errEl.style.display='block';}
@@ -796,11 +796,6 @@ const $ = s => document.querySelector(s);
 const logEl = $('#log');
 function log(msg,cls){logEl.innerHTML+=`\n<span class="${cls||''}">${msg}</span>`;logEl.scrollTop=logEl.scrollHeight;}
 function clearLog(){logEl.innerHTML='';}
-
-// ключ Claude (без захардкоженного дефолта!)
-const kClaudeEl = $('#kClaude');
-kClaudeEl.value = localStorage.getItem('kClaude')||'';
-kClaudeEl.addEventListener('input',()=>localStorage.setItem('kClaude',kClaudeEl.value));
 
 // загрузка фото
 let imgB64 = null;
