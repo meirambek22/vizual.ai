@@ -861,9 +861,22 @@ async function callClaude(key,mkt,wish,userText,count,aspect){
     ?`ВАЖНО: пользователь задал свой текст. Используй ТОЛЬКО его, ничего не выдумывай сверх. Раскидай его по ${count} слайдам по смыслу.\nТЕКСТ ПОЛЬЗОВАТЕЛЯ:\n"""${userText.trim()}"""`
     :`Текст не задан — придумай сам по фото, продающий и грамотный.`;
 
+  // Разные раскладки для каждого слайда — чтобы карусель была интересной и не однотипной
+  const LAYOUTS=[
+    "БОЛЬШОЙ товар по центру, крупный заголовок сверху, диагональные геометрические фигуры на фоне, акцентный угол",
+    "товар СЛЕВА под наклоном (динамичный ракурс), текст справа столбцом, минималистичный светлый фон с тенью товара",
+    "товар СПРАВА крупно, слева 3 фишки с иконками в кружках, контрастный двухцветный фон (диагональное деление)",
+    "товар в нижней части по центру, большой акцентный круг/всплеск цвета за товаром, текст сверху, премиум тёмный фон",
+    "КРУПНЫЙ план товара под углом, яркий градиентный фон, большой слоган-призыв, кнопка CTA снизу по центру"
+  ];
+  const layoutHints=Array.from({length:count},(_,i)=>`слайд ${i+1}: ${LAYOUTS[i%LAYOUTS.length]}`).join('\n');
+
   const prompt=`Маркетплейс: ${mkt}. Стиль: "${wish||'премиум, ярко'}". Формат: ${aspect}.
-Нужно ${count} РАЗНЫХ слайдов карусели. Бренд/категория одинаковые везде, но КАЖДЫЙ слайд про своё и со своим слоганом:
-слайд 1 — герой/главное, 2 — ключевая выгода, 3 — для кого/применение, 4 — качество/состав, 5 — акция/призыв.
+Нужно ${count} РАЗНЫХ слайдов карусели. Бренд/категория одинаковые везде, но КАЖДЫЙ слайд про своё, со своим слоганом И СО СВОЕЙ РАСКЛАДКОЙ.
+Смысл слайдов: 1 — герой/главное, 2 — ключевая выгода, 3 — для кого/применение, 4 — качество/состав, 5 — акция/призыв.
+
+ОБЯЗАТЕЛЬНО: каждый слайд должен ВИЗУАЛЬНО ОТЛИЧАТЬСЯ — разное положение товара (центр/слева/справа/снизу), разный ракурс, разный фон и композиция. Используй эти раскладки:
+${layoutHints}
 ${textRule}
 
 Верни ТОЛЬКО JSON:
@@ -883,11 +896,11 @@ ${textRule}
      "volumeBadge":"объём/размер или пусто",
      "volumeLabel":"подпись или пусто",
      "bottomIcons":[{"title":"КОРОТКО","desc":"кратко"},{"title":"КОРОТКО","desc":"кратко"},{"title":"КОРОТКО","desc":"кратко"},{"title":"КОРОТКО","desc":"кратко"}],
-     "imagePrompt":"English. Design a COMPLETE, beautiful ${aspect} marketplace product card, your own creative layout. Keep the product from the reference image 100% identical (shape, colors, logo, real label) — do not redraw the product. Render ON the card EXACTLY this text with PERFECT spelling (Cyrillic/Kazakh, do not alter any letters): category tag <productCategory>; big title <headline>; subtitle <subHeadline>; slogan <tagline>; three short feature lines from features; CTA button <cta>. Vivid premium e-commerce style, clean readable typography, palette around <mainColor> with <accentColor> accents, dynamic background fitting the product, photorealistic. Put the SAME exact Russian text, not English. 130 words."
+     "imagePrompt":"English. Design a COMPLETE, beautiful ${aspect} marketplace product card. USE THIS SPECIFIC LAYOUT for this slide: <LAYOUT_HINT>. Keep the product from the reference image 100% identical (shape, colors, logo, real label) — do not redraw the product. Render ON the card EXACTLY this text with PERFECT spelling (Cyrillic/Kazakh, do not alter any letters): category tag <productCategory>; big title <headline>; subtitle <subHeadline>; slogan <tagline>; three short feature lines from features; CTA button <cta>. Vivid premium e-commerce style, clean readable typography, palette around <mainColor> with <accentColor> accents, photorealistic. Put the SAME exact Russian text, not English. Make this slide visually DIFFERENT from the others. 130 words."
    }
  ]
 }
-Сделай РОВНО ${count} слайдов в массиве "slides". В каждом imagePrompt подставь реальные тексты этого слайда.`;
+Сделай РОВНО ${count} слайдов в массиве "slides". В каждом imagePrompt подставь реальные тексты этого слайда И подставь конкретную раскладку этого слайда вместо <LAYOUT_HINT>.`;
 
   const r=await fetch(`${PROXY}/api/claude`,{
     method:'POST',
