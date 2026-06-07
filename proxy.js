@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-// Node 18+ умеет fetch сам. Если нет — берём node-fetch (любой версии).
 const fetch = globalThis.fetch
   ? globalThis.fetch.bind(globalThis)
   : (() => { const f = require('node-fetch'); return f.default || f; })();
@@ -10,9 +9,23 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '30mb' }));
 
-// === КЛЮЧ ===
-// В .env положи:  FAL_KEY=xxxxxxxx:yyyyyyyy   (ключ из fal.ai → Settings → Keys)
+// === КЛЮЧИ ===
 const FAL_KEY = process.env.FAL_KEY || '';
+const ADMIN_KEY = process.env.ADMIN_KEY || 'vizual-admin-secret'; // секрет для защиты admin-эндпоинтов
+
+// === FIREBASE ADMIN ===
+let adminAuth = null, adminDb = null;
+try {
+  const admin = require('firebase-admin');
+  if (!admin.apps.length) {
+    const sa = JSON.parse(process.env.FIREBASE_SA || '{}');
+    admin.initializeApp({ credential: admin.credential.cert(sa) });
+  }
+  adminAuth = admin.auth();
+  adminDb = admin.firestore();
+  console.log('✅ Firebase Admin: OK');
+} catch(e) { console.log('⚠️ Firebase Admin не настроен:', e.message); }
+
 
 const FAL_SYNC = 'https://fal.run';        // быстрые модели (картинки) — ждём ответ сразу
 const FAL_QUEUE = 'https://queue.fal.run'; // долгие модели (видео) — очередь + поллинг
@@ -134,6 +147,68 @@ app.post('/api/video', async (req, res) => {
 });
 
 app.get('/health', (req, res) => res.json({ ok: true, models: MODELS }));
+
+// ── 4) CLAUDE (Haiku) — прокси, ключ хранится на сервере ────────────
+app.post('/api/claude', async (req, res) => {
+  try {
+    const CLAUDE_KEY = process.env.CLAUDE_KEY;
+    if (!CLAUDE_KEY) throw new Error('CLAUDE_KEY не задан в переменных окружения Render');
+    const { model, max_tokens, messages, system } = req.body;
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': CLAUDE_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({ model: model||'claude-haiku-4-5-20251001', max_tokens: max_tokens||1500, messages, system })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    res.json(await r.json());
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// ── 5) ADMIN: Создать пользователя ──────────────────────────────────
+app.post('/api/admin/create-user', async (req, res) => {
+  try {
+    if (!adminAuth || !adminDb) throw new Error('Firebase Admin не настроен');
+    const { email, password, sparks, adminKey } = req.body;
+    if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Нет доступа' });
+    if (!email || !password) throw new Error('Email и пароль обязательны');
+    // Создаём пользователя в Firebase Auth
+    const user = await adminAuth.createUser({ email, password });
+    // Создаём документ в Firestore
+    await adminDb.collection('users').doc(user.uid).set({
+      email, name: email.split('@')[0], sparks: parseInt(sparks)||0,
+      plan: '', createdAt: new Date()
+    });
+    res.json({ ok: true, uid: user.uid, email });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 6) ADMIN: Изменить пароль пользователя ──────────────────────────
+app.post('/api/admin/update-password', async (req, res) => {
+  try {
+    if (!adminAuth) throw new Error('Firebase Admin не настроен');
+    const { uid, password, adminKey } = req.body;
+    if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Нет доступа' });
+    await adminAuth.updateUser(uid, { password });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 7) ADMIN: Удалить пользователя ──────────────────────────────────
+app.post('/api/admin/delete-user', async (req, res) => {
+  try {
+    if (!adminAuth || !adminDb) throw new Error('Firebase Admin не настроен');
+    const { uid, adminKey } = req.body;
+    if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Нет доступа' });
+    await adminAuth.deleteUser(uid);
+    await adminDb.collection('users').doc(uid).delete();
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 app.listen(3001, () => {
   console.log('✅ Proxy (fal.ai) запущен: http://localhost:3001');
