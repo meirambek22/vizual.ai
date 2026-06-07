@@ -149,7 +149,131 @@
   .tier .t-p{color:var(--acc);font-weight:800;margin-left:auto;margin-right:12px}
   .tier .gbtn{width:auto;padding:9px 18px;font-size:14px}
   .muted{color:var(--muted);font-size:12px}
-</style>
+
+  /* ══ APP LAYOUT (после входа) ══ */
+  .app-layout{display:flex;min-height:100vh;padding-top:0}
+  /* SIDEBAR */
+  .app-sb{width:230px;background:#0d1120;border-right:1px solid var(--line);position:fixed;top:0;bottom:0;left:0;display:flex;flex-direction:column;z-index:50}
+  .sb-logo{padding:20px;font-size:17px;font-weight:900;border-bottom:1px solid var(--line);letter-spacing:-.3px}
+  .sb-logo .spark{display:inline-block;width:8px;height:8px;background:var(--acc);border-radius:50%;margin-right:6px;vertical-align:middle}
+  .sb-nav{padding:12px 0;flex:1}
+  .sb-item{display:flex;align-items:center;gap:10px;padding:11px 20px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;border-right:3px solid transparent;transition:.15s}
+  .sb-item:hover{color:var(--ink);background:rgba(255,255,255,.04)}
+  .sb-item.active{color:var(--acc);background:rgba(255,176,32,.07);border-right-color:var(--acc)}
+  .sb-item .sb-ic{font-size:16px}
+  .sb-bottom{padding:16px;border-top:1px solid var(--line)}
+  .sb-sparks-box{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+  .sb-spark-num{font-size:26px;font-weight:900;color:var(--acc);display:block;line-height:1}
+  .sb-spark-lbl{font-size:11px;color:var(--muted)}
+  .sb-email{font-size:11px;color:var(--muted);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sb-actions{display:flex;flex-direction:column;gap:6px}
+  .sb-btn{background:transparent;border:1px solid var(--line);color:var(--muted);padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;text-align:left;transition:.15s}
+  .sb-btn:hover{border-color:var(--acc2);color:var(--ink)}
+  .sb-btn.danger:hover{border-color:#ef4444;color:#ef4444}
+  /* MAIN */
+  .app-main{margin-left:230px;display:flex;gap:0;min-height:100vh;flex:1}
+  /* LEFT FORM PANEL */
+  .form-panel{width:380px;min-width:340px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:100vh}
+  .panel-hdr{padding:18px 20px;border-bottom:1px solid var(--line);font-size:15px;font-weight:800;display:flex;align-items:center;gap:8px}
+  .panel-hdr .ph-icon{font-size:18px}
+  .form-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1}
+  .f-label{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  .f-group{display:flex;flex-direction:column}
+  .f-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  /* DROP ZONE */
+  .drop2{border:2px dashed var(--line);border-radius:14px;padding:22px;text-align:center;cursor:pointer!important;transition:.2s;background:var(--panel2);position:relative;overflow:hidden}
+  .drop2:hover{border-color:var(--acc2);background:rgba(59,130,246,.05)}
+  .drop2 .d-icon{font-size:28px;margin-bottom:6px;pointer-events:none}
+  .drop2 .d-main{font-size:14px;font-weight:700;margin-bottom:2px;pointer-events:none}
+  .drop2 .d-sub{font-size:12px;color:var(--muted);pointer-events:none}
+  .drop2 input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:10}
+  /* FORM ELEMENTS */
+  textarea,select,input[type=text]{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;width:100%;outline:none;transition:.15s;resize:none}
+  textarea:focus,select:focus,input[type=text]:focus{border-color:var(--acc2)}
+  textarea{height:72px}
+  .hint2{font-size:12px;color:var(--muted);line-height:1.4;margin-top:4px}
+  /* GO BUTTON */
+  .go2{background:linear-gradient(135deg,var(--acc),#ff7a00);border:none;color:#1a1200;font-size:16px;font-weight:900;padding:15px;border-radius:12px;cursor:pointer;width:100%;letter-spacing:.3px;transition:.15s;margin-top:4px}
+  .go2:hover{filter:brightness(1.08)}
+  .go2:disabled{opacity:.45;cursor:not-allowed}
+  /* RIGHT RESULT PANEL */
+  .result-panel{flex:1;display:flex;flex-direction:column;background:var(--bg);min-height:100vh}
+  .result-hdr{padding:18px 20px;border-bottom:1px solid var(--line);font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:space-between;background:var(--panel)}
+  .result-acts{display:flex;gap:8px}
+  .r-btn{background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:.15s}
+  .r-btn:hover{border-color:var(--acc2)}
+  .r-btn:disabled{opacity:.4;cursor:not-allowed}
+  .preview2{flex:1;padding:24px;display:flex;flex-wrap:wrap;gap:14px;align-content:flex-start;min-height:400px}
+  .preview2 .empty-state{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;color:var(--muted);gap:12px}
+  .preview2 .empty-state .big{font-size:48px}
+  .preview2 img{border-radius:12px;max-width:220px;max-height:220px;object-fit:cover;border:1px solid var(--line)}
+  .log2{background:var(--panel);border-top:1px solid var(--line);padding:14px 20px;font-size:12px;color:var(--muted);font-family:monospace;max-height:160px;overflow-y:auto;white-space:pre-wrap;line-height:1.6}
+  .log2 .ok{color:#22c55e}
+  .log2 .er{color:#ef4444}
+  .log2 .wa{color:var(--acc)}
+  .spin2{display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ══ ADMIN PANEL ══ */
+  .admin-layout{display:none;min-height:100vh}
+  .a-sidebar{width:230px;background:#0d1120;border-right:1px solid var(--line);position:fixed;top:0;bottom:0;left:0;display:flex;flex-direction:column;z-index:50}
+  .a-sb-logo{padding:20px;font-size:17px;font-weight:900;border-bottom:1px solid var(--line)}
+  .a-sb-logo span{color:var(--acc)}
+  .a-nav{padding:12px 0;flex:1}
+  .a-item{padding:11px 20px;font-size:14px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:10px;border-right:3px solid transparent;cursor:default}
+  .a-item.active{color:var(--acc);background:rgba(255,176,32,.07);border-right-color:var(--acc)}
+  .a-bottom{padding:16px;border-top:1px solid var(--line)}
+  .a-email{font-size:12px;color:var(--muted);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .a-logout{width:100%;background:transparent;border:1px solid var(--line);color:var(--muted);padding:8px;border-radius:8px;font-size:13px;cursor:pointer}
+  .a-logout:hover{border-color:#ef4444;color:#ef4444}
+  .a-content{margin-left:230px;padding:28px}
+  .a-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+  .a-title{font-size:20px;font-weight:900}
+  .a-btn-new{background:linear-gradient(135deg,var(--acc),#ff7a00);border:none;color:#1a1200;padding:10px 20px;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer}
+  .a-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+  .a-stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .a-stat-val{font-size:28px;font-weight:900;color:var(--acc);line-height:1}
+  .a-stat-lbl{font-size:12px;color:var(--muted);margin-top:4px}
+  .a-toolbar{display:flex;gap:12px;margin-bottom:16px}
+  .a-search{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 16px;color:var(--ink);font-size:14px;outline:none}
+  .a-search:focus{border-color:var(--acc2)}
+  .a-refresh{background:var(--panel);border:1px solid var(--line);color:var(--muted);padding:10px 16px;border-radius:10px;font-size:13px;cursor:pointer}
+  .a-table-wrap{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+  .a-table-wrap table{width:100%;border-collapse:collapse}
+  .a-table-wrap thead tr{background:var(--panel2);border-bottom:1px solid var(--line)}
+  .a-table-wrap th{padding:12px 16px;text-align:left;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+  .a-table-wrap tbody tr{border-bottom:1px solid #1a1e2c;transition:.12s}
+  .a-table-wrap tbody tr:last-child{border-bottom:none}
+  .a-table-wrap tbody tr:hover{background:var(--panel2)}
+  .a-table-wrap td{padding:13px 16px;font-size:14px;vertical-align:middle}
+  .sp-badge{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 12px;font-size:15px;font-weight:900;color:var(--acc)}
+  .sp-badge.zero{color:#ef4444;border-color:#3b1010;background:#110808}
+  .a-acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .aqb{background:var(--panel2);border:1px solid var(--line);color:var(--acc2);border-radius:7px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer}
+  .aqb:hover{background:var(--line);border-color:var(--acc2)}
+  .aqb.red{color:#ef4444}
+  .aqb.red:hover{border-color:#ef4444}
+  .a-inp{background:#0a0e1a;border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:6px 8px;font-size:13px;text-align:center;outline:none;width:62px}
+  .a-inp-lg{width:110px}
+  .a-add-btn{background:var(--acc);border:none;color:#1a1200;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer}
+  .a-empty td{text-align:center;padding:40px;color:var(--muted)}
+  .a-loading td{text-align:center;padding:40px;color:var(--muted)}
+  /* create modal */
+  .a-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:300;padding:20px}
+  .a-overlay.open{display:flex}
+  .a-modal{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:32px;width:100%;max-width:420px}
+  .a-modal h3{font-size:18px;font-weight:900;margin-bottom:20px}
+  .a-f-label{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;display:block}
+  .a-f-input{width:100%;background:#0a0e1a;border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:11px 14px;font-size:14px;outline:none;margin-bottom:14px}
+  .a-f-input:focus{border-color:var(--acc2)}
+  .a-mrow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .a-create-btn{width:100%;background:linear-gradient(135deg,var(--acc),#ff7a00);border:none;color:#1a1200;padding:13px;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer}
+  .a-cancel-btn{width:100%;background:transparent;border:1px solid var(--line);color:var(--muted);padding:13px;border-radius:10px;font-size:14px;cursor:pointer;margin-top:8px}
+  .a-modal-err{color:#ef4444;font-size:13px;margin-top:10px;display:none}
+  .a-cred-box{background:#0a0e1a;border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px;font-size:13px;line-height:1.9;display:none}
+  .a-cred-box b{color:var(--acc)}
+  .a-toast{position:fixed;bottom:24px;right:24px;background:var(--panel);border:1px solid var(--line);border-left:4px solid #22c55e;color:var(--ink);padding:14px 20px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;transform:translateY(8px);transition:.25s;pointer-events:none;z-index:999}
+  .a-toast.show{opacity:1;transform:none}</style>
 </head>
 <body>
 
@@ -255,12 +379,12 @@
     <button class="reg-close" onclick="closeLogin()">✕</button>
     <div style="font-size:32px;margin-bottom:10px">⚡</div>
     <h3>Войти в Vizual AI</h3>
-    <p>Войдите через Google и начните создавать карточки.</p>
-    <button class="btn-google" onclick="vaLogin()">
-      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.5 2.5 30.1 0 24 0 14.7 0 6.8 5.5 3 13.5l7.8 6c1.8-5.4 6.8-10 13.2-10z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 6.9-10 6.9-17z"/><path fill="#FBBC05" d="M10.8 28.5A14.5 14.5 0 019.5 24c0-1.6.3-3.1.7-4.5L2.4 13.5A24 24 0 000 24c0 3.8.9 7.4 2.5 10.6l8.3-6.1z"/><path fill="#34A853" d="M24 48c6.1 0 11.2-2 14.9-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.4 2.2-6.4 0-11.8-4.3-13.7-10.1l-8 6.2C6.6 42.5 14.7 48 24 48z"/></svg>
-      Продолжить с Google
-    </button>
-    <p style="font-size:13px;color:var(--muted)">Нет аккаунта? <a href="#" onclick="switchReg()" style="color:var(--acc);text-decoration:none">Зарегистрироваться</a></p>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px">Введите логин и пароль от вашего аккаунта</p>
+    <input type="email" id="loginEmail" placeholder="Email" style="width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:11px 14px;font-size:14px;outline:none;margin-bottom:10px">
+    <input type="password" id="loginPass" placeholder="Пароль" style="width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:11px 14px;font-size:14px;outline:none;margin-bottom:14px">
+    <button class="gbtn" onclick="doEmailLogin()" style="font-size:15px;padding:13px">Войти</button>
+    <div id="loginErr" style="color:#ef4444;font-size:13px;margin-top:10px;display:none"></div>
+    <p style="font-size:13px;color:var(--muted);margin-top:12px">Нет аккаунта? <a href="#" onclick="switchReg()" style="color:var(--acc);text-decoration:none">Зарегистрироваться</a></p>
   </div>
 </div>
 
@@ -278,83 +402,182 @@
   </div>
 </div>
 
-<div class="wrap">
-  <header>
-    <div class="logo"><span class="spark"></span> Vizual AI</div>
-    <div id="userBox" style="display:none;align-items:center;gap:10px">
-      <button class="vbtn" onclick="vaOpenTariffs()">⚡ Искры: <b id="sparkCount">0</b></button>
-      <span id="uEmail" class="muted"></span>
-      <button class="vbtn" onclick="vaLogout()">Выйти</button>
+<div class="app-layout" id="appLayout">
+
+  <!-- САЙДБАР -->
+  <aside class="app-sb">
+    <div class="sb-logo"><span class="spark"></span> Vizual AI</div>
+    <nav class="sb-nav">
+      <div class="sb-item active"><span class="sb-ic">🖼</span> Генератор</div>
+      <div class="sb-item" onclick="vaOpenTariffs()"><span class="sb-ic">💳</span> Тарифы</div>
+      <div class="sb-item" onclick="openReg()"><span class="sb-ic">💬</span> Купить искры</div>
+    </nav>
+    <div class="sb-bottom">
+      <div class="sb-sparks-box">
+        <span class="sb-spark-num" id="sparkCount">0</span>
+        <span class="sb-spark-lbl">⚡ искр осталось</span>
+      </div>
+      <div class="sb-email" id="uEmail"></div>
+      <div class="sb-actions" id="userBox" style="display:none">
+        <button class="sb-btn" onclick="vaOpenTariffs()">Пополнить искры</button>
+        <button class="sb-btn danger" onclick="vaLogout()">Выйти</button>
+      </div>
     </div>
-  </header>
+  </aside>
 
-  <div class="grid">
-    <div class="card">
-      <h2>1 · Загрузи фото товара</h2>
+  <!-- ОСНОВНОЙ КОНТЕНТ -->
+  <div class="app-main">
 
-      <div class="drop" id="drop">
-        <div class="ph" id="ph"><b>Нажми или перетащи фото</b>JPG / PNG / WEBP</div>
-        <input type="file" id="file" accept="image/*" hidden>
+    <!-- ЛЕВАЯ ПАНЕЛЬ: Форма -->
+    <div class="form-panel">
+      <div class="panel-hdr"><span class="ph-icon">⚙️</span> Настройки генерации</div>
+      <div class="form-body">
+
+        <!-- Фото -->
+        <div class="f-group">
+          <div class="f-label">Фото товара</div>
+          <div class="drop2" id="drop">
+            <div class="ph" id="ph">
+              <div class="d-icon">📸</div>
+              <div class="d-main">Нажми или перетащи фото</div>
+              <div class="d-sub">JPG · PNG · WEBP</div>
+            </div>
+            <input type="file" id="file" accept="image/*">
+          </div>
+        </div>
+
+        <!-- Текст -->
+        <div class="f-group">
+          <div class="f-label">Текст карточки <span style="font-weight:400;text-transform:none">(по желанию)</span></div>
+          <textarea id="userText" placeholder="Заголовок, слоган, преимущества… Если пусто — AI напишет сам по фото."></textarea>
+        </div>
+
+        <!-- Маркетплейс + Размер -->
+        <div class="f-row">
+          <div class="f-group">
+            <div class="f-label">Маркетплейс</div>
+            <select id="mkt">
+              <option>WB</option><option>OZON</option><option>Kaspi</option><option>Halyk</option>
+            </select>
+          </div>
+          <div class="f-group">
+            <div class="f-label">Размер</div>
+            <select id="size">
+              <option value="1080x1080">Квадрат 1:1</option>
+              <option value="1080x1440">Вертикаль 3:4</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Количество + Режим -->
+        <div class="f-row">
+          <div class="f-group">
+            <div class="f-label">Кол-во фото</div>
+            <select id="count">
+              <option value="1">1 фото</option><option value="2">2 фото</option>
+              <option value="3" selected>3 фото</option><option value="4">4 фото</option><option value="5">5 фото</option>
+            </select>
+          </div>
+          <div class="f-group">
+            <div class="f-label">Режим дизайна</div>
+            <select id="bgMode">
+              <option value="creative">Креатив — ИИ рисует всё</option>
+              <option value="scene">Сцена + чёткий текст</option>
+              <option value="gradient">Чистый — без изменений</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Пожелание -->
+        <div class="f-group">
+          <div class="f-label">Пожелание к стилю <span style="font-weight:400;text-transform:none">(по желанию)</span></div>
+          <input type="text" id="wish" placeholder="премиум, ярко, тропики, минимализм…">
+          <div class="hint2">Креатив — ИИ рисует каждую карточку. Сцена — один фон + чёткий текст (дешевле). Чистый — товар не меняется.</div>
+        </div>
+
+        <!-- Кнопка -->
+        <button class="go2" id="go">✦ Создать карусель</button>
+
       </div>
-
-      <label>Текст карточки <span style="color:var(--muted)">(по желанию)</span></label>
-      <textarea id="userText" placeholder="Напиши свой текст — заголовок, слоган, преимущества, объём…
-Если пусто — AI напишет всё сам по фото."></textarea>
-      <div class="hint">Есть текст — используем твой. Пусто — AI придумает сам.</div>
-
-      <div class="row">
-        <div>
-          <label>Маркетплейс</label>
-          <select id="mkt"><option>WB</option><option>OZON</option><option>Kaspi</option><option>Halyk</option></select>
-        </div>
-        <div>
-          <label>Размер</label>
-          <select id="size"><option value="1080x1080">Квадрат 1:1</option><option value="1080x1440">Вертикаль 3:4</option></select>
-        </div>
-      </div>
-
-      <div class="row">
-        <div>
-          <label>Сколько фото (карусель)</label>
-          <select id="count"><option value="1">1 фото</option><option value="2">2 фото</option><option value="3" selected>3 фото</option><option value="4">4 фото</option><option value="5">5 фото</option></select>
-        </div>
-      </div>
-
-      <div class="row">
-        <div>
-          <label>Режим дизайна</label>
-          <select id="bgMode">
-            <option value="creative">Креатив — ИИ рисует всё</option>
-            <option value="scene">Сцена + чёткий текст</option>
-            <option value="gradient">Чистый — товар не меняется</option>
-          </select>
-        </div>
-        <div>
-          <label>Пожелание к стилю <span style="color:var(--muted)">(по желанию)</span></label>
-          <input type="text" id="wish" placeholder="премиум, ярко, тропики">
-        </div>
-      </div>
-      <div class="hint"><b>Креатив</b> — ИИ рисует каждую карточку (красиво, но платная каждая, текст с риском). <b>Сцена</b> — 1 фон от ИИ на всю карусель + чёткий текст (дешевле всего ~$0.08 за набор). <b>Чистый</b> — товар 100% не меняется.</div>
-
-
-      <button class="go" id="go">✦ Создать карточку</button>
-
     </div>
 
-    <div class="stage">
-      <h2>Результат</h2>
-      <div class="preview" id="preview">
-        <div class="empty"><div class="big">🖼</div>Здесь появится готовая карточка</div>
+    <!-- ПРАВАЯ ПАНЕЛЬ: Результат -->
+    <div class="result-panel">
+      <div class="result-hdr">
+        <span>📦 Результат</span>
+        <div class="result-acts">
+          <button class="r-btn" id="again" disabled>↻ Ещё раз</button>
+          <button class="r-btn" id="newbg" disabled>🎨 Новый фон</button>
+          <button class="r-btn" id="dl" disabled>⬇ Скачать всё</button>
+        </div>
       </div>
-      <div class="log" id="log">Готов. Загрузи фото → нажми «Создать карточку».</div>
-      <div class="acts">
-        <button id="dl" disabled>⬇ Скачать всё</button>
-        <button id="again" disabled>↻ Ещё раз ($0)</button>
-        <button id="newbg" disabled>🎨 Новый фон</button>
+      <div class="preview2" id="preview">
+        <div class="empty-state">
+          <div class="big">🖼</div>
+          <div>Загрузи фото и нажми «Создать карусель»</div>
+        </div>
       </div>
+      <div class="log2" id="log">Готов к работе. Загрузи фото товара и нажми «Создать карусель».</div>
+    </div>
+
+  </div>
+</div>
+<!-- ═══════════ АДМИН-ПАНЕЛЬ ═══════════ -->
+<div class="admin-layout" id="adminLayout">
+  <aside class="a-sidebar">
+    <div class="a-sb-logo">⚡ Vizual <span>AI</span></div>
+    <nav class="a-nav">
+      <div class="a-item active">👥 Пользователи</div>
+    </nav>
+    <div class="a-bottom">
+      <div class="a-email" id="aEmail">—</div>
+      <button class="a-logout" onclick="vaLogout()">Выйти</button>
+    </div>
+  </aside>
+  <div class="a-content">
+    <div class="a-hdr">
+      <div class="a-title">Пользователи Vizual AI</div>
+      <button class="a-btn-new" onclick="aOpenCreate()">+ Создать пользователя</button>
+    </div>
+    <div class="a-stats">
+      <div class="a-stat"><div class="a-stat-val" id="aTotal">—</div><div class="a-stat-lbl">Всего</div></div>
+      <div class="a-stat"><div class="a-stat-val" id="aTotalSp">—</div><div class="a-stat-lbl">Искр на балансах</div></div>
+      <div class="a-stat"><div class="a-stat-val" id="aZero">—</div><div class="a-stat-lbl">Кончились искры</div></div>
+      <div class="a-stat"><div class="a-stat-val" id="aToday">—</div><div class="a-stat-lbl">Зарег. сегодня</div></div>
+    </div>
+    <div class="a-toolbar">
+      <input class="a-search" id="aSearch" placeholder="🔍 Поиск по email..." oninput="aDoSearch()">
+      <button class="a-refresh" onclick="aLoadUsers()">↻ Обновить</button>
+    </div>
+    <div class="a-table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Email</th><th>Телефон</th><th>Искры</th><th>Дата</th><th>Начислить</th><th>Пароль</th></tr></thead>
+        <tbody id="aTbody"><tr class="a-loading"><td colspan="6">Загрузка...</td></tr></tbody>
+      </table>
     </div>
   </div>
 </div>
+
+<!-- МОДАЛ: создать пользователя -->
+<div class="a-overlay" id="aCreateModal">
+  <div class="a-modal">
+    <h3>Новый пользователь</h3>
+    <label class="a-f-label">Email</label>
+    <input class="a-f-input" type="email" id="aNewEmail" placeholder="user@mail.com">
+    <label class="a-f-label">Номер телефона</label>
+    <input class="a-f-input" type="tel" id="aNewPhone" placeholder="+7 777 000 00 00">
+    <div class="a-mrow">
+      <div><label class="a-f-label">Пароль</label><input class="a-f-input" type="text" id="aNewPass" placeholder="мин. 6 символов"></div>
+      <div><label class="a-f-label">Искры</label><input class="a-f-input" type="number" id="aNewSparks" value="30" placeholder="30"></div>
+    </div>
+    <button class="a-create-btn" onclick="aCreateUser()">✦ Создать</button>
+    <button class="a-cancel-btn" onclick="aCloseCreate()">Отмена</button>
+    <div class="a-modal-err" id="aCreateErr"></div>
+    <div class="a-cred-box" id="aCredBox"></div>
+  </div>
+</div>
+<div class="a-toast" id="aToast"></div>
+
 <canvas id="cv" style="display:none"></canvas>
 
 <script>
@@ -377,10 +600,30 @@ window.VA = { user:null, sparks:0 };
 
 function _updSparks(){ const e=document.getElementById('sparkCount'); if(e) e.textContent=window.VA.sparks; }
 
+const ADMIN_EMAIL_VA = "ummamiko7@gmail.com";
+const PROXY_URL = "https://vizual-ai.onrender.com";
+const ADMIN_KEY = "vizual-admin-secret";
+
 _auth.onAuthStateChanged(async (u)=>{
+  const landing = document.getElementById('landing');
+  const appLayout = document.getElementById('appLayout');
+  const adminLayout = document.getElementById('adminLayout');
+
   if(u){
+    // ADMIN → показываем админку
+    if(u.email === ADMIN_EMAIL_VA){
+      landing.style.display='none';
+      appLayout.style.display='none';
+      adminLayout.style.display='block';
+      document.getElementById('aEmail').textContent = u.email;
+      aLoadUsers();
+      return;
+    }
+    // ОБЫЧНЫЙ ПОЛЬЗОВАТЕЛЬ → показываем генератор
     window.VA.user=u;
-    document.getElementById('landing').style.display='none';
+    landing.style.display='none';
+    appLayout.style.display='flex';
+    adminLayout.style.display='none';
     document.getElementById('userBox').style.display='flex';
     document.getElementById('uEmail').textContent=u.email;
     const ref=_db.collection('users').doc(u.uid);
@@ -391,13 +634,29 @@ _auth.onAuthStateChanged(async (u)=>{
     }else if(snap){ window.VA.sparks=snap.data().sparks||0; }
     _updSparks();
   }else{
+    // НЕ ЗАЛОГИНЕН → показываем лендинг
     window.VA.user=null;
-    document.getElementById('landing').style.display='block';
+    landing.style.display='block';
+    appLayout.style.display='none';
+    adminLayout.style.display='none';
     document.getElementById('userBox').style.display='none';
   }
 });
 
-window.vaLogin=()=>_auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert('Вход не удался: '+e.message));
+window.vaLogin=()=>document.getElementById('loginOverlay').classList.add('open');
+window.doEmailLogin=async()=>{
+  const email=document.getElementById('loginEmail').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  const errEl=document.getElementById('loginErr');
+  errEl.style.display='none';
+  try{
+    await _auth.signInWithEmailAndPassword(email,pass);
+    closeLogin();
+  }catch(e){
+    errEl.textContent=e.code==='auth/wrong-password'||e.code==='auth/user-not-found'?'Неверный email или пароль':e.message;
+    errEl.style.display='block';
+  }
+};
 window.vaLogout=()=>_auth.signOut();
 // Лендинг
 let _selPlan='',_selPrice='';
@@ -410,6 +669,112 @@ window.doWA=()=>{ const t=encodeURIComponent(`Здравствуйте! Хочу
 // клик вне модала закрывает
 document.getElementById('regOverlay').addEventListener('click',e=>{if(e.target===document.getElementById('regOverlay'))closeReg();});
 document.getElementById('loginOverlay').addEventListener('click',e=>{if(e.target===document.getElementById('loginOverlay'))closeLogin();});
+
+/* ══════ ADMIN FUNCTIONS ══════ */
+let _aUsers=[];
+async function aLoadUsers(){
+  document.getElementById('aTbody').innerHTML='<tr class="a-loading"><td colspan="6">Загрузка...</td></tr>';
+  try{
+    const snap=await _db.collection('users').orderBy('createdAt','desc').get();
+    _aUsers=[];
+    snap.forEach(d=>_aUsers.push({id:d.id,...d.data()}));
+    aUpdateStats(); aRenderTable(_aUsers);
+  }catch(e){
+    document.getElementById('aTbody').innerHTML=`<tr><td colspan="6" style="text-align:center;padding:32px;color:#ef4444">Ошибка: ${e.message}</td></tr>`;
+  }
+}
+function aUpdateStats(){
+  const today=new Date();today.setHours(0,0,0,0);
+  let sp=0,zero=0,reg=0;
+  _aUsers.forEach(u=>{sp+=u.sparks||0;if((u.sparks||0)===0)zero++;const d=u.createdAt?.toDate?.();if(d&&d>=today)reg++;});
+  document.getElementById('aTotal').textContent=_aUsers.length;
+  document.getElementById('aTotalSp').textContent=sp;
+  document.getElementById('aZero').textContent=zero;
+  document.getElementById('aToday').textContent=reg;
+}
+function aRenderTable(list){
+  const tb=document.getElementById('aTbody');
+  if(!list.length){tb.innerHTML='<tr class="a-empty"><td colspan="6">Пока нет пользователей. Создайте первого!</td></tr>';return;}
+  tb.innerHTML=list.map((u,i)=>{
+    const sp=u.sparks||0;
+    const date=u.createdAt?.toDate?.()?.toLocaleDateString('ru-RU')||'—';
+    return `<tr>
+      <td style="color:var(--muted);font-size:12px">${i+1}</td>
+      <td style="font-weight:700">${u.email||'—'}</td>
+      <td style="color:var(--muted);font-size:13px">${u.phone||'—'}</td>
+      <td><span class="sp-badge${sp===0?' zero':''}">⚡ ${sp}</span></td>
+      <td style="color:var(--muted);font-size:13px">${date}</td>
+      <td><div class="a-acts">
+        <button class="aqb" onclick="aAdd('${u.id}',30)">+30</button>
+        <button class="aqb" onclick="aAdd('${u.id}',50)">+50</button>
+        <button class="aqb" onclick="aAdd('${u.id}',100)">+100</button>
+        <input class="a-inp" type="number" id="ac_${u.id}" placeholder="N">
+        <button class="a-add-btn" onclick="aAddCustom('${u.id}')">+</button>
+        <button class="aqb red" onclick="aAdd('${u.id}',-1)">−1</button>
+      </div></td>
+      <td><div class="a-acts">
+        <input class="a-inp a-inp-lg" type="text" id="ap_${u.id}" placeholder="новый пароль">
+        <button class="aqb" onclick="aChangePwd('${u.id}')">Сменить</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+function aDoSearch(){
+  const q=document.getElementById('aSearch').value.toLowerCase();
+  aRenderTable(q?_aUsers.filter(u=>(u.email||'').toLowerCase().includes(q)):_aUsers);
+}
+async function aAdd(uid,amount){
+  try{
+    await _db.collection('users').doc(uid).update({sparks:firebase.firestore.FieldValue.increment(amount)});
+    const u=_aUsers.find(x=>x.id===uid);if(u)u.sparks=(u.sparks||0)+amount;
+    aUpdateStats();aDoSearch();
+    aToast(amount>0?`✅ +${amount} искр начислено`:`🔻 ${Math.abs(amount)} искра списана`);
+  }catch(e){aToast('Ошибка: '+e.message,true);}
+}
+function aAddCustom(uid){const v=parseInt(document.getElementById('ac_'+uid).value);if(!v||isNaN(v))return;aAdd(uid,v);document.getElementById('ac_'+uid).value='';}
+async function aChangePwd(uid){
+  const pwd=document.getElementById('ap_'+uid).value.trim();
+  if(!pwd||pwd.length<6){aToast('Пароль минимум 6 символов',true);return;}
+  try{
+    const r=await fetch(`${PROXY_URL}/api/admin/update-password`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({uid,password:pwd,adminKey:ADMIN_KEY})});
+    const d=await r.json();if(d.error)throw new Error(d.error);
+    document.getElementById('ap_'+uid).value='';aToast('✅ Пароль изменён');
+  }catch(e){aToast('Ошибка: '+e.message,true);}
+}
+function aOpenCreate(){
+  ['aNewEmail','aNewPass','aNewPhone'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('aNewSparks').value='30';
+  document.getElementById('aCreateErr').style.display='none';
+  document.getElementById('aCredBox').style.display='none';
+  document.getElementById('aCreateModal').classList.add('open');
+}
+function aCloseCreate(){document.getElementById('aCreateModal').classList.remove('open');}
+async function aCreateUser(){
+  const email=document.getElementById('aNewEmail').value.trim();
+  const phone=document.getElementById('aNewPhone').value.trim();
+  const password=document.getElementById('aNewPass').value.trim();
+  const sparks=parseInt(document.getElementById('aNewSparks').value)||30;
+  const errEl=document.getElementById('aCreateErr');errEl.style.display='none';
+  if(!email||!password){errEl.textContent='Заполните email и пароль';errEl.style.display='block';return;}
+  if(password.length<6){errEl.textContent='Пароль минимум 6 символов';errEl.style.display='block';return;}
+  try{
+    const r=await fetch(`${PROXY_URL}/api/admin/create-user`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password,sparks,phone,adminKey:ADMIN_KEY})});
+    const d=await r.json();if(d.error)throw new Error(d.error);
+    const credBox=document.getElementById('aCredBox');
+    credBox.innerHTML=`<b>Данные для клиента:</b><br>🌐 vermillion-starlight-c3893a.netlify.app/vizual.html<br>📧 Логин: <b>${email}</b><br>🔑 Пароль: <b>${password}</b>${phone?'<br>📱 Телефон: <b>'+phone+'</b>':''}<br>⚡ Искры: <b>${sparks}</b>`;
+    credBox.style.display='block';
+    aToast(`✅ Создан: ${email}`);aLoadUsers();
+  }catch(e){errEl.textContent='Ошибка: '+e.message;errEl.style.display='block';}
+}
+let _aToastT;
+function aToast(msg,err=false){
+  const el=document.getElementById('aToast');el.textContent=msg;
+  el.className='a-toast show'+(err?' err':'');
+  clearTimeout(_aToastT);_aToastT=setTimeout(()=>el.classList.remove('show'),3000);
+}
+window.aOpenCreate=aOpenCreate;window.aCloseCreate=aCloseCreate;window.aCreateUser=aCreateUser;
+window.aAdd=aAdd;window.aAddCustom=aAddCustom;window.aChangePwd=aChangePwd;
+window.aDoSearch=aDoSearch;window.aLoadUsers=aLoadUsers;
 window.vaOpenTariffs=()=>{ document.getElementById('tariffModal').style.display='flex'; };
 window.vaCloseTariffs=()=>{ document.getElementById('tariffModal').style.display='none'; };
 window.vaRefreshSparks=async()=>{ if(!window.VA.user)return; const s=await _db.collection('users').doc(window.VA.user.uid).get(); window.VA.sparks=s.data().sparks||0; _updSparks(); };
@@ -440,7 +805,8 @@ kClaudeEl.addEventListener('input',()=>localStorage.setItem('kClaude',kClaudeEl.
 // загрузка фото
 let imgB64 = null;
 const drop=$('#drop'),fileInp=$('#file');
-drop.addEventListener('click',()=>fileInp.click());
+// input покрывает всю зону (z-index:10) и сам открывает диалог при клике —
+// отдельный обработчик клика НЕ нужен (вызывал двойное срабатывание)
 drop.addEventListener('dragover',e=>{e.preventDefault();drop.style.borderColor='#3b82f6'});
 drop.addEventListener('dragleave',()=>drop.style.borderColor='');
 drop.addEventListener('drop',e=>{e.preventDefault();drop.style.borderColor='';if(e.dataTransfer.files[0])loadPhoto(e.dataTransfer.files[0])});
@@ -448,21 +814,27 @@ fileInp.addEventListener('change',e=>{if(e.target.files[0])loadPhoto(e.target.fi
 function loadPhoto(f){
   const r=new FileReader();
   r.onload=()=>{
-    const img=new Image();
-    img.onload=()=>{
-      // Сжимаем большое фото с телефона до ~1400px: товар/этикетка остаются чёткими,
-      // выходная карточка не меняется, но входные токены (и счёт fal/Claude) меньше.
-      const MAX=1400;
-      let w=img.width,h=img.height;
-      if(Math.max(w,h)>MAX){const k=MAX/Math.max(w,h);w=Math.round(w*k);h=Math.round(h*k);}
-      const c=document.createElement('canvas');c.width=w;c.height=h;
-      c.getContext('2d').drawImage(img,0,0,w,h);
-      imgB64=c.toDataURL('image/jpeg',0.9);
-      sceneCache=null; // новое фото → старый фон не годится
-      drop.classList.add('has');$('#ph').outerHTML=`<img src="${imgB64}" id="ph">`;
-    };
-    img.onerror=()=>{imgB64=r.result;drop.classList.add('has');$('#ph').outerHTML=`<img src="${imgB64}" id="ph">`;};
-    img.src=r.result;
+    // 1) СРАЗУ показываем превью и сохраняем фото (гарантированно работает)
+    imgB64 = r.result;
+    sceneCache = null;
+    const phEl=$('#ph');
+    if(phEl) phEl.innerHTML=`<img src="${imgB64}" style="max-width:100%;max-height:180px;border-radius:10px;display:block;margin:0 auto">`;
+    drop.classList.add('has');
+    // 2) В фоне пробуем сжать большое фото (чтобы дешевле для API). Если не вышло — не страшно.
+    try{
+      const img=new Image();
+      img.onload=()=>{
+        try{
+          const MAX=1400;
+          let w=img.width,h=img.height;
+          if(Math.max(w,h)>MAX){const k=MAX/Math.max(w,h);w=Math.round(w*k);h=Math.round(h*k);}
+          const c=document.createElement('canvas');c.width=w;c.height=h;
+          c.getContext('2d').drawImage(img,0,0,w,h);
+          imgB64=c.toDataURL('image/jpeg',0.9);
+        }catch(e){ /* оставляем оригинал */ }
+      };
+      img.src=r.result;
+    }catch(e){ /* оставляем оригинал */ }
   };
   r.readAsDataURL(f);
 }

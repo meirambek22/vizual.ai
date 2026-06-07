@@ -1,216 +1,1240 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const fetch = globalThis.fetch
-  ? globalThis.fetch.bind(globalThis)
-  : (() => { const f = require('node-fetch'); return f.default || f; })();
-
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: '30mb' }));
-
-// === КЛЮЧИ ===
-const FAL_KEY = process.env.FAL_KEY || '';
-const ADMIN_KEY = process.env.ADMIN_KEY || 'vizual-admin-secret'; // секрет для защиты admin-эндпоинтов
-
-// === FIREBASE ADMIN ===
-let adminAuth = null, adminDb = null;
-try {
-  const admin = require('firebase-admin');
-  if (!admin.apps.length) {
-    const sa = JSON.parse(process.env.FIREBASE_SA || '{}');
-    admin.initializeApp({ credential: admin.credential.cert(sa) });
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vizual AI — Генератор карточек</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#0a0e1a;--panel:#121829;--panel2:#1a2238;
+    --ink:#eef2ff;--muted:#8b96b5;--line:#283150;
+    --acc:#ffb020;--acc2:#3b82f6;--ok:#22c55e;--err:#ef4444;
   }
-  adminAuth = admin.auth();
-  adminDb = admin.firestore();
-  console.log('✅ Firebase Admin: OK');
-} catch(e) { console.log('⚠️ Firebase Admin не настроен:', e.message); }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:radial-gradient(1200px 600px at 80% -10%,#182038 0%,transparent 60%),radial-gradient(900px 500px at -10% 110%,#1b2540 0%,transparent 55%),var(--bg);color:var(--ink);min-height:100vh;padding:24px}
+  .wrap{max-width:1180px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px}
+  .logo{display:flex;align-items:center;gap:12px;font-size:24px;font-weight:800;letter-spacing:.5px}
+  .logo .spark{width:30px;height:30px;background:linear-gradient(135deg,var(--acc),#ff7a00);clip-path:polygon(50% 0,61% 35%,100% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,0 35%,39% 35%)}
+  .cnt{background:var(--panel2);border:1px solid var(--line);padding:8px 16px;border-radius:30px;font-weight:700;font-size:14px}
+  .cnt b{color:var(--acc)}
+  .grid{display:grid;grid-template-columns:390px 1fr;gap:20px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:1.4px;color:var(--muted);margin-bottom:14px;font-weight:700}
+  label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;font-weight:600}
+  input[type=text],input[type=password],textarea,select{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:11px 13px;font-size:14px;font-family:inherit;outline:none;transition:.15s}
+  input:focus,textarea:focus,select:focus{border-color:var(--acc2)}
+  textarea{resize:vertical;min-height:84px;line-height:1.45}
+  .hint{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.4}
+  .drop{border:2px dashed var(--line);border-radius:12px;padding:26px 14px;text-align:center;cursor:pointer;transition:.15s;background:var(--panel2)}
+  .drop:hover{border-color:var(--acc2);background:#1e2742}
+  .drop.has{padding:8px;border-style:solid}
+  .drop img{max-width:100%;max-height:200px;border-radius:8px;display:block;margin:0 auto}
+  .drop .ph{color:var(--muted);font-size:13px}
+  .drop .ph b{color:var(--ink);display:block;font-size:15px;margin-bottom:4px}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1}
+  button.go{width:100%;margin-top:18px;background:linear-gradient(135deg,var(--acc),#ff7a00);border:none;color:#1a1200;font-weight:800;font-size:15px;padding:14px;border-radius:12px;cursor:pointer;transition:.15s;letter-spacing:.3px}
+  button.go:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  button.go:disabled{opacity:.5;cursor:not-allowed;transform:none}
+  .keys{margin-top:8px}
+  .keys summary{cursor:pointer;font-size:12px;color:var(--muted);user-select:none;padding:6px 0}
+  .keys summary:hover{color:var(--ink)}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;display:flex;flex-direction:column;min-height:560px}
+  .preview{flex:1;display:flex;align-items:center;justify-content:center;background:repeating-conic-gradient(#161d30 0% 25%,#131a2b 0% 50%) 0/28px 28px;border-radius:12px;overflow:hidden;position:relative}
+  .preview img{max-width:100%;max-height:620px;border-radius:8px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+  .preview .empty{color:var(--muted);text-align:center;font-size:14px;padding:30px}
+  .preview .empty .big{font-size:46px;margin-bottom:12px;opacity:.5}
+  .log{margin-top:14px;font-size:12px;color:var(--muted);font-family:ui-monospace,monospace;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:70px;max-height:160px;overflow:auto;white-space:pre-wrap;line-height:1.5}
+  .log .ok{color:var(--ok)}.log .er{color:var(--err)}.log .wa{color:var(--acc)}
+  .acts{display:flex;gap:10px;margin-top:12px}
+  .acts button{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:11px;border-radius:10px;cursor:pointer;font-weight:600;font-size:13px;transition:.15s}
+  .acts button:hover:not(:disabled){border-color:var(--acc2)}
+  .acts button:disabled{opacity:.4;cursor:not-allowed}
+  .spin{width:44px;height:44px;border:4px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:sp 1s linear infinite;position:absolute}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .carousel{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  .carousel video{max-width:100%;max-height:620px;border-radius:8px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+  .nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;background:rgba(0,0,0,.55);border:1px solid var(--line);color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;transition:.15s}
+  .nav:hover{background:var(--acc);color:#1a1200}
+  .nav.prev{left:10px}.nav.next{right:10px}
+  .dots{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:7px;z-index:5}
+  .dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.35);cursor:pointer;transition:.15s}
+  .dot.active{background:var(--acc);width:22px;border-radius:5px}
+  .tag{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;z-index:5}
+  .note{background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(124,58,237,.12));border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:10px 12px;margin-top:14px;font-size:11px;line-height:1.5;color:var(--ink)}
+  .note b{color:#a78bfa}
+  .vbtn{background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:8px 14px;border-radius:20px;font-weight:700;font-size:13px;cursor:pointer}
+  .vbtn:hover{border-color:var(--acc2)}
+  .vbtn b{color:var(--acc)}
+  /* ── ЛЕНДИНГ ── */
+  .landing{position:fixed;inset:0;background:#0a0e1a;overflow-y:auto;z-index:100;display:none}
+  .land-nav{position:sticky;top:0;background:rgba(10,14,26,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:60px;z-index:10}
+  .land-nav .logo{font-size:18px;font-weight:900}
+  .land-nav-btns{display:flex;gap:10px}
+  .btn-reg{background:linear-gradient(135deg,var(--acc),#ff7a00);border:none;color:#1a1200;padding:9px 20px;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer}
+  .btn-reg:hover{filter:brightness(1.08)}
+  .btn-in{background:transparent;border:1px solid var(--line);color:var(--ink);padding:9px 18px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer}
+  .btn-in:hover{border-color:var(--acc2);color:var(--acc2)}
+  .land-hero{text-align:center;padding:90px 20px 60px;position:relative}
+  .land-hero::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:700px;height:500px;background:radial-gradient(circle,rgba(255,176,32,.07) 0%,transparent 70%);pointer-events:none}
+  .land-tag{display:inline-block;background:var(--panel);border:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:.8px;text-transform:uppercase;margin-bottom:22px}
+  .land-h1{font-size:clamp(28px,5vw,56px);font-weight:900;line-height:1.1;margin-bottom:18px}
+  .land-h1 em{font-style:normal;background:linear-gradient(135deg,var(--acc),#ff7a00);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .land-desc{font-size:17px;color:var(--muted);max-width:520px;margin:0 auto 32px;line-height:1.6}
+  .land-btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:40px}
+  .land-btn-main{padding:15px 30px;background:linear-gradient(135deg,var(--acc),#ff7a00);border:none;color:#1a1200;border-radius:13px;font-size:16px;font-weight:800;cursor:pointer}
+  .land-btn-main:hover{filter:brightness(1.1)}
+  .land-btn-out{padding:15px 28px;background:transparent;border:2px solid var(--line);color:var(--ink);border-radius:13px;font-size:16px;font-weight:700;cursor:pointer}
+  .land-btn-out:hover{border-color:var(--acc)}
+  .land-markets{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .land-badge{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 14px;font-size:13px;color:var(--muted)}
+  .land-section{max-width:1040px;margin:0 auto;padding:60px 20px}
+  .land-sec-label{text-align:center;font-size:11px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+  .land-sec-h{text-align:center;font-size:clamp(22px,3.5vw,36px);font-weight:900;margin-bottom:10px}
+  .land-sec-sub{text-align:center;color:var(--muted);font-size:15px;margin-bottom:44px;max-width:500px;margin-left:auto;margin-right:auto}
+  .feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+  .feat-card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px}
+  .feat-card:hover{border-color:var(--acc2)}
+  .feat-icon{font-size:28px;margin-bottom:12px}
+  .feat-card h3{font-size:16px;font-weight:800;margin-bottom:6px}
+  .feat-card p{font-size:13px;color:var(--muted);line-height:1.5}
+  .price-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;max-width:820px;margin:0 auto}
+  .p-card{background:var(--panel);border:2px solid var(--line);border-radius:18px;padding:28px;text-align:center;position:relative}
+  .p-card.hot{border-color:var(--acc)}
+  .p-card.hot::before{content:'Популярный';position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--acc),#ff7a00);color:#1a1200;font-size:11px;font-weight:800;padding:3px 14px;border-radius:20px;white-space:nowrap}
+  .p-num{font-size:44px;font-weight:900;color:var(--acc);line-height:1}
+  .p-num span{font-size:15px;color:var(--muted);font-weight:400}
+  .p-price{font-size:26px;font-weight:900;margin:10px 0 4px}
+  .p-per{font-size:12px;color:var(--muted);margin-bottom:20px}
+  .p-btn{width:100%;padding:13px;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;border:none}
+  .p-btn-main{background:linear-gradient(135deg,var(--acc),#ff7a00);color:#1a1200}
+  .p-btn-out{background:transparent;border:2px solid var(--line)!important;border:none;color:var(--ink)}
+  .p-btn:hover{filter:brightness(1.08)}
+  .land-footer{text-align:center;border-top:1px solid var(--line);padding:28px;color:var(--muted);font-size:13px}
+  /* регистрация модал */
+  .reg-overlay{position:fixed;inset:0;background:rgba(5,8,18,.9);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;z-index:200;padding:20px}
+  .reg-overlay.open{display:flex}
+  .reg-modal{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:34px;max-width:400px;width:100%;text-align:center}
+  .reg-modal h3{font-size:20px;font-weight:900;margin-bottom:8px}
+  .reg-modal p{color:var(--muted);font-size:13px;line-height:1.5;margin-bottom:22px}
+  .wa-box{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+  .wa-lbl{font-size:11px;color:var(--muted);margin-bottom:4px}
+  .wa-num{font-size:22px;font-weight:900;color:#25D366}
+  .btn-wa{width:100%;padding:14px;background:#25D366;border:none;color:#fff;border-radius:11px;font-size:15px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px}
+  .btn-wa:hover{background:#22c55e}
+  .reg-note{font-size:12px;color:var(--muted);line-height:1.5}
+  .reg-close{background:transparent;border:none;color:var(--muted);font-size:18px;cursor:pointer;float:right;margin-top:-10px}
+  /* ВХОД модал внутри лендинга */
+  .log-modal{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:34px;max-width:380px;width:100%;text-align:center}
+  .log-modal h3{font-size:20px;font-weight:900;margin-bottom:8px}
+  .log-modal p{color:var(--muted);font-size:14px;margin-bottom:24px}
+  .btn-google{background:#fff;color:#333;border:none;border-radius:11px;padding:14px 20px;font-size:14px;font-weight:700;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px}
+  .btn-google:hover{background:#f3f4f6}
 
+  .overlay{position:fixed;inset:0;background:rgba(5,8,18,.88);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .authcard,.modal{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:30px;max-width:420px;width:100%;text-align:center}
+  .authcard p{color:var(--muted);margin:8px 0 22px;font-size:14px}
+  .gbtn{background:linear-gradient(135deg,var(--acc),#ff7a00);border:none;color:#1a1200;font-weight:800;font-size:15px;padding:13px 22px;border-radius:12px;cursor:pointer;width:100%}
+  .gbtn:hover{filter:brightness(1.08)}
+  .modal h3{font-size:20px;margin-bottom:6px}
+  .modal>p{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .tiers{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+  .tier{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .tier .t-n{font-weight:800;font-size:16px}
+  .tier .t-p{color:var(--acc);font-weight:800;margin-left:auto;margin-right:12px}
+  .tier .gbtn{width:auto;padding:9px 18px;font-size:14px}
+  .muted{color:var(--muted);font-size:12px}
 
-const FAL_SYNC = 'https://fal.run';        // быстрые модели (картинки) — ждём ответ сразу
-const FAL_QUEUE = 'https://queue.fal.run'; // долгие модели (видео) — очередь + поллинг
+  /* ══ APP LAYOUT (после входа) ══ */
+  .app-layout{display:flex;min-height:100vh;padding-top:0}
+  /* SIDEBAR */
+  .app-sb{width:230px;background:#0d1120;border-right:1px solid var(--line);position:fixed;top:0;bottom:0;left:0;display:flex;flex-direction:column;z-index:50}
+  .sb-logo{padding:20px;font-size:17px;font-weight:900;border-bottom:1px solid var(--line);letter-spacing:-.3px}
+  .sb-logo .spark{display:inline-block;width:8px;height:8px;background:var(--acc);border-radius:50%;margin-right:6px;vertical-align:middle}
+  .sb-nav{padding:12px 0;flex:1}
+  .sb-item{display:flex;align-items:center;gap:10px;padding:11px 20px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;border-right:3px solid transparent;transition:.15s}
+  .sb-item:hover{color:var(--ink);background:rgba(255,255,255,.04)}
+  .sb-item.active{color:var(--acc);background:rgba(255,176,32,.07);border-right-color:var(--acc)}
+  .sb-item .sb-ic{font-size:16px}
+  .sb-bottom{padding:16px;border-top:1px solid var(--line)}
+  .sb-sparks-box{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+  .sb-spark-num{font-size:26px;font-weight:900;color:var(--acc);display:block;line-height:1}
+  .sb-spark-lbl{font-size:11px;color:var(--muted)}
+  .sb-email{font-size:11px;color:var(--muted);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sb-actions{display:flex;flex-direction:column;gap:6px}
+  .sb-btn{background:transparent;border:1px solid var(--line);color:var(--muted);padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;text-align:left;transition:.15s}
+  .sb-btn:hover{border-color:var(--acc2);color:var(--ink)}
+  .sb-btn.danger:hover{border-color:#ef4444;color:#ef4444}
+  /* MAIN */
+  .app-main{margin-left:230px;display:flex;gap:0;min-height:100vh;flex:1}
+  /* LEFT FORM PANEL */
+  .form-panel{width:380px;min-width:340px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:100vh}
+  .panel-hdr{padding:18px 20px;border-bottom:1px solid var(--line);font-size:15px;font-weight:800;display:flex;align-items:center;gap:8px}
+  .panel-hdr .ph-icon{font-size:18px}
+  .form-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1}
+  .f-label{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  .f-group{display:flex;flex-direction:column}
+  .f-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  /* DROP ZONE */
+  .drop2{border:2px dashed var(--line);border-radius:14px;padding:22px;text-align:center;cursor:pointer!important;transition:.2s;background:var(--panel2);position:relative;overflow:hidden}
+  .drop2:hover{border-color:var(--acc2);background:rgba(59,130,246,.05)}
+  .drop2 .d-icon{font-size:28px;margin-bottom:6px;pointer-events:none}
+  .drop2 .d-main{font-size:14px;font-weight:700;margin-bottom:2px;pointer-events:none}
+  .drop2 .d-sub{font-size:12px;color:var(--muted);pointer-events:none}
+  .drop2 input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:10}
+  /* FORM ELEMENTS */
+  textarea,select,input[type=text]{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;width:100%;outline:none;transition:.15s;resize:none}
+  textarea:focus,select:focus,input[type=text]:focus{border-color:var(--acc2)}
+  textarea{height:72px}
+  .hint2{font-size:12px;color:var(--muted);line-height:1.4;margin-top:4px}
+  /* GO BUTTON */
+  .go2{background:linear-gradient(135deg,var(--acc),#ff7a00);border:none;color:#1a1200;font-size:16px;font-weight:900;padding:15px;border-radius:12px;cursor:pointer;width:100%;letter-spacing:.3px;transition:.15s;margin-top:4px}
+  .go2:hover{filter:brightness(1.08)}
+  .go2:disabled{opacity:.45;cursor:not-allowed}
+  /* RIGHT RESULT PANEL */
+  .result-panel{flex:1;display:flex;flex-direction:column;background:var(--bg);min-height:100vh}
+  .result-hdr{padding:18px 20px;border-bottom:1px solid var(--line);font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:space-between;background:var(--panel)}
+  .result-acts{display:flex;gap:8px}
+  .r-btn{background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:.15s}
+  .r-btn:hover{border-color:var(--acc2)}
+  .r-btn:disabled{opacity:.4;cursor:not-allowed}
+  .preview2{flex:1;padding:24px;display:flex;flex-wrap:wrap;gap:14px;align-content:flex-start;min-height:400px}
+  .preview2 .empty-state{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;color:var(--muted);gap:12px}
+  .preview2 .empty-state .big{font-size:48px}
+  .preview2 img{border-radius:12px;max-width:220px;max-height:220px;object-fit:cover;border:1px solid var(--line)}
+  .log2{background:var(--panel);border-top:1px solid var(--line);padding:14px 20px;font-size:12px;color:var(--muted);font-family:monospace;max-height:160px;overflow-y:auto;white-space:pre-wrap;line-height:1.6}
+  .log2 .ok{color:#22c55e}
+  .log2 .er{color:#ef4444}
+  .log2 .wa{color:var(--acc)}
+  .spin2{display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
 
-// === МОДЕЛИ (меняешь стек здесь, остальной код трогать не надо) ===
-const MODELS = {
-  cutout:     'fal-ai/birefnet/v2',                      // вырез фона → прозрачный PNG
-  scene:      'fal-ai/bytedance/seedream/v4.5/edit',     // КРЕАТИВ: вся карточка с текстом (Seedream ~$0.04, дёшево; текст иногда кривой)
-  sceneCheap: 'fal-ai/bytedance/seedream/v5/lite/edit',  // СЦЕНА: только фон+товар (~$0.035), текст рисует Canvas
-  sceneGen:   'fal-ai/nano-banana-2',                    // сцена БЕЗ товара (чистый фон)
-  video:      'fal-ai/vidu/q3/image-to-video'            // видео (опция убрана из UI)
-  // Ещё дешевле для scene: 'fal-ai/bytedance/seedream/v4.5/edit' (качественнее, ~$0.04)
+  /* ══ ADMIN PANEL ══ */
+  .admin-layout{display:none;min-height:100vh}
+  .a-sidebar{width:230px;background:#0d1120;border-right:1px solid var(--line);position:fixed;top:0;bottom:0;left:0;display:flex;flex-direction:column;z-index:50}
+  .a-sb-logo{padding:20px;font-size:17px;font-weight:900;border-bottom:1px solid var(--line)}
+  .a-sb-logo span{color:var(--acc)}
+  .a-nav{padding:12px 0;flex:1}
+  .a-item{padding:11px 20px;font-size:14px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:10px;border-right:3px solid transparent;cursor:default}
+  .a-item.active{color:var(--acc);background:rgba(255,176,32,.07);border-right-color:var(--acc)}
+  .a-bottom{padding:16px;border-top:1px solid var(--line)}
+  .a-email{font-size:12px;color:var(--muted);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .a-logout{width:100%;background:transparent;border:1px solid var(--line);color:var(--muted);padding:8px;border-radius:8px;font-size:13px;cursor:pointer}
+  .a-logout:hover{border-color:#ef4444;color:#ef4444}
+  .a-content{margin-left:230px;padding:28px}
+  .a-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+  .a-title{font-size:20px;font-weight:900}
+  .a-btn-new{background:linear-gradient(135deg,var(--acc),#ff7a00);border:none;color:#1a1200;padding:10px 20px;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer}
+  .a-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+  .a-stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .a-stat-val{font-size:28px;font-weight:900;color:var(--acc);line-height:1}
+  .a-stat-lbl{font-size:12px;color:var(--muted);margin-top:4px}
+  .a-toolbar{display:flex;gap:12px;margin-bottom:16px}
+  .a-search{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 16px;color:var(--ink);font-size:14px;outline:none}
+  .a-search:focus{border-color:var(--acc2)}
+  .a-refresh{background:var(--panel);border:1px solid var(--line);color:var(--muted);padding:10px 16px;border-radius:10px;font-size:13px;cursor:pointer}
+  .a-table-wrap{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+  .a-table-wrap table{width:100%;border-collapse:collapse}
+  .a-table-wrap thead tr{background:var(--panel2);border-bottom:1px solid var(--line)}
+  .a-table-wrap th{padding:12px 16px;text-align:left;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+  .a-table-wrap tbody tr{border-bottom:1px solid #1a1e2c;transition:.12s}
+  .a-table-wrap tbody tr:last-child{border-bottom:none}
+  .a-table-wrap tbody tr:hover{background:var(--panel2)}
+  .a-table-wrap td{padding:13px 16px;font-size:14px;vertical-align:middle}
+  .sp-badge{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 12px;font-size:15px;font-weight:900;color:var(--acc)}
+  .sp-badge.zero{color:#ef4444;border-color:#3b1010;background:#110808}
+  .a-acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .aqb{background:var(--panel2);border:1px solid var(--line);color:var(--acc2);border-radius:7px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer}
+  .aqb:hover{background:var(--line);border-color:var(--acc2)}
+  .aqb.red{color:#ef4444}
+  .aqb.red:hover{border-color:#ef4444}
+  .a-inp{background:#0a0e1a;border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:6px 8px;font-size:13px;text-align:center;outline:none;width:62px}
+  .a-inp-lg{width:110px}
+  .a-add-btn{background:var(--acc);border:none;color:#1a1200;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer}
+  .a-empty td{text-align:center;padding:40px;color:var(--muted)}
+  .a-loading td{text-align:center;padding:40px;color:var(--muted)}
+  /* create modal */
+  .a-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:300;padding:20px}
+  .a-overlay.open{display:flex}
+  .a-modal{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:32px;width:100%;max-width:420px}
+  .a-modal h3{font-size:18px;font-weight:900;margin-bottom:20px}
+  .a-f-label{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;display:block}
+  .a-f-input{width:100%;background:#0a0e1a;border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:11px 14px;font-size:14px;outline:none;margin-bottom:14px}
+  .a-f-input:focus{border-color:var(--acc2)}
+  .a-mrow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .a-create-btn{width:100%;background:linear-gradient(135deg,var(--acc),#ff7a00);border:none;color:#1a1200;padding:13px;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer}
+  .a-cancel-btn{width:100%;background:transparent;border:1px solid var(--line);color:var(--muted);padding:13px;border-radius:10px;font-size:14px;cursor:pointer;margin-top:8px}
+  .a-modal-err{color:#ef4444;font-size:13px;margin-top:10px;display:none}
+  .a-cred-box{background:#0a0e1a;border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px;font-size:13px;line-height:1.9;display:none}
+  .a-cred-box b{color:var(--acc)}
+  .a-toast{position:fixed;bottom:24px;right:24px;background:var(--panel);border:1px solid var(--line);border-left:4px solid #22c55e;color:var(--ink);padding:14px 20px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;transform:translateY(8px);transition:.25s;pointer-events:none;z-index:999}
+  .a-toast.show{opacity:1;transform:none}</style>
+</head>
+<body>
+
+<!-- ═══════════ ЛЕНДИНГ (показывается когда не залогинен) ═══════════ -->
+<div class="landing" id="landing">
+  <nav class="land-nav">
+    <div class="logo"><span class="spark"></span> Vizual AI</div>
+    <div class="land-nav-btns">
+      <button class="btn-in" onclick="landLogin()">Войти</button>
+      <button class="btn-reg" onclick="openReg()">Регистрация</button>
+    </div>
+  </nav>
+
+  <!-- ГЕРОЙ -->
+  <div class="land-hero">
+    <div class="land-tag">🇰🇿 Для казахстанских маркетплейсов</div>
+    <h1 class="land-h1">Карточки товаров<br>с <em>искусственным интеллектом</em></h1>
+    <p class="land-desc">Загружаешь фото товара — ИИ создаёт готовую карусель карточек для Kaspi, Wildberries и OZON за 30 секунд.</p>
+    <div class="land-btns">
+      <button class="land-btn-main" onclick="openReg()">Начать →</button>
+      <button class="land-btn-out" onclick="landLogin()">Войти в аккаунт</button>
+    </div>
+    <div class="land-markets">
+      <span class="land-badge">🛒 Kaspi</span>
+      <span class="land-badge">📦 Wildberries</span>
+      <span class="land-badge">🟠 OZON</span>
+      <span class="land-badge">🏦 Halyk Market</span>
+    </div>
+  </div>
+
+  <!-- ФИЧИ -->
+  <div class="land-section">
+    <div class="land-sec-label">Возможности</div>
+    <h2 class="land-sec-h">Всё что нужно для продаж</h2>
+    <p class="land-sec-sub">Профессиональные карточки без дизайнера</p>
+    <div class="feat-grid">
+      <div class="feat-card"><div class="feat-icon">🤖</div><h3>ИИ пишет тексты</h3><p>Claude анализирует фото и создаёт продающие заголовки и слоганы на русском.</p></div>
+      <div class="feat-card"><div class="feat-icon">🎨</div><h3>Три режима дизайна</h3><p>Креатив — ИИ рисует всё. Сцена — красивый фон. Чистый — убирает фон.</p></div>
+      <div class="feat-card"><div class="feat-icon">⚡</div><h3>30 секунд — готово</h3><p>Вся карусель из 3–5 карточек создаётся автоматически. Скачай и загружай.</p></div>
+      <div class="feat-card"><div class="feat-icon">💰</div><h3>Дешевле дизайнера</h3><p>Одна карусель от 130 ₸. Дизайнер берёт 5 000–20 000 ₸ за то же самое.</p></div>
+      <div class="feat-card"><div class="feat-icon">📱</div><h3>Все форматы</h3><p>Квадрат 1:1 для Kaspi, вертикальный 4:5 для WB и OZON.</p></div>
+      <div class="feat-card"><div class="feat-icon">🔒</div><h3>Безопасно</h3><p>Вход через Google. Оплата через Kaspi — без лишних посредников.</p></div>
+    </div>
+  </div>
+
+  <!-- ТАРИФЫ -->
+  <div class="land-section" style="background:var(--panel);border-top:1px solid var(--line);border-bottom:1px solid var(--line);max-width:100%;padding:60px 20px">
+    <div style="max-width:820px;margin:0 auto">
+      <div class="land-sec-label">Тарифы</div>
+      <h2 class="land-sec-h">Прозрачные цены</h2>
+      <p class="land-sec-sub">1 искра = 1 готовая карусель. Срока действия нет.</p>
+      <div class="price-grid">
+        <div class="p-card">
+          <div class="p-num">30 <span>искр</span></div>
+          <div class="p-price">3 990 ₸</div>
+          <div class="p-per">133 ₸ за карусель</div>
+          <button class="p-btn p-btn-out" onclick="openReg('30 искр','3 990 тенге')">Купить →</button>
+        </div>
+        <div class="p-card hot">
+          <div class="p-num">50 <span>искр</span></div>
+          <div class="p-price">7 990 ₸</div>
+          <div class="p-per">160 ₸ за карусель</div>
+          <button class="p-btn p-btn-main" onclick="openReg('50 искр','7 990 тенге')">Купить →</button>
+        </div>
+        <div class="p-card">
+          <div class="p-num">100 <span>искр</span></div>
+          <div class="p-price">13 990 ₸</div>
+          <div class="p-per">140 ₸ за карусель</div>
+          <button class="p-btn p-btn-out" onclick="openReg('100 искр','13 990 тенге')">Купить →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="land-footer">
+    <div style="font-size:16px;font-weight:900;margin-bottom:6px">⚡ Vizual AI</div>
+    <p>По вопросам: <a href="https://wa.me/77775864046" style="color:#25D366;text-decoration:none">WhatsApp +7 777 586 40 46</a></p>
+  </div>
+</div>
+
+<!-- МОДАЛ: РЕГИСТРАЦИЯ / ОПЛАТА -->
+<div class="reg-overlay" id="regOverlay">
+  <div class="reg-modal">
+    <button class="reg-close" onclick="closeReg()">✕</button>
+    <div style="font-size:32px;margin-bottom:10px">💬</div>
+    <h3>Регистрация и оплата</h3>
+    <p>Напишите нам в WhatsApp — ответим в течение нескольких минут, поможем с оплатой и начислим искры на ваш аккаунт.</p>
+    <div class="wa-box">
+      <div class="wa-lbl">Наш номер WhatsApp</div>
+      <div class="wa-num">+7 777 586 40 46</div>
+    </div>
+    <button class="btn-wa" id="waBtn" onclick="doWA()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      Написать в WhatsApp
+    </button>
+    <p class="reg-note">После оплаты через Kaspi — пришлите скриншот чека в WhatsApp. Искры начислим в течение нескольких минут.</p>
+  </div>
+</div>
+
+<!-- МОДАЛ: ВХОД -->
+<div class="reg-overlay" id="loginOverlay">
+  <div class="log-modal">
+    <button class="reg-close" onclick="closeLogin()">✕</button>
+    <div style="font-size:32px;margin-bottom:10px">⚡</div>
+    <h3>Войти в Vizual AI</h3>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px">Введите логин и пароль от вашего аккаунта</p>
+    <input type="email" id="loginEmail" placeholder="Email" style="width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:11px 14px;font-size:14px;outline:none;margin-bottom:10px">
+    <input type="password" id="loginPass" placeholder="Пароль" style="width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:11px 14px;font-size:14px;outline:none;margin-bottom:14px">
+    <button class="gbtn" onclick="doEmailLogin()" style="font-size:15px;padding:13px">Войти</button>
+    <div id="loginErr" style="color:#ef4444;font-size:13px;margin-top:10px;display:none"></div>
+    <p style="font-size:13px;color:var(--muted);margin-top:12px">Нет аккаунта? <a href="#" onclick="switchReg()" style="color:var(--acc);text-decoration:none">Зарегистрироваться</a></p>
+  </div>
+</div>
+
+<!-- Тарифы (внутри приложения) -->
+<div id="tariffModal" class="overlay" style="display:none">
+  <div class="modal">
+    <h3>Тарифы Vizual AI</h3>
+    <p>1 искра = 1 генерация (вся карусель). Оплата через WhatsApp — после оплаты начислим искры на ваш аккаунт.</p>
+    <div class="tiers">
+      <div class="tier"><span class="t-n">30 искр</span><span class="t-p">3 990 ₸</span><button class="gbtn" onclick="vaBuy('30 искр','3 990 тенге')">Купить</button></div>
+      <div class="tier"><span class="t-n">50 искр</span><span class="t-p">7 990 ₸</span><button class="gbtn" onclick="vaBuy('50 искр','7 990 тенге')">Купить</button></div>
+      <div class="tier"><span class="t-n">100 искр</span><span class="t-p">13 990 ₸</span><button class="gbtn" onclick="vaBuy('100 искр','13 990 тенге')">Купить</button></div>
+    </div>
+    <button class="vbtn" onclick="vaCloseTariffs()">Закрыть</button>
+  </div>
+</div>
+
+<div class="app-layout" id="appLayout">
+
+  <!-- САЙДБАР -->
+  <aside class="app-sb">
+    <div class="sb-logo"><span class="spark"></span> Vizual AI</div>
+    <nav class="sb-nav">
+      <div class="sb-item active"><span class="sb-ic">🖼</span> Генератор</div>
+      <div class="sb-item" onclick="vaOpenTariffs()"><span class="sb-ic">💳</span> Тарифы</div>
+      <div class="sb-item" onclick="openReg()"><span class="sb-ic">💬</span> Купить искры</div>
+    </nav>
+    <div class="sb-bottom">
+      <div class="sb-sparks-box">
+        <span class="sb-spark-num" id="sparkCount">0</span>
+        <span class="sb-spark-lbl">⚡ искр осталось</span>
+      </div>
+      <div class="sb-email" id="uEmail"></div>
+      <div class="sb-actions" id="userBox" style="display:none">
+        <button class="sb-btn" onclick="vaOpenTariffs()">Пополнить искры</button>
+        <button class="sb-btn danger" onclick="vaLogout()">Выйти</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ОСНОВНОЙ КОНТЕНТ -->
+  <div class="app-main">
+
+    <!-- ЛЕВАЯ ПАНЕЛЬ: Форма -->
+    <div class="form-panel">
+      <div class="panel-hdr"><span class="ph-icon">⚙️</span> Настройки генерации</div>
+      <div class="form-body">
+
+        <!-- Фото -->
+        <div class="f-group">
+          <div class="f-label">Фото товара</div>
+          <div class="drop2" id="drop">
+            <div class="ph" id="ph">
+              <div class="d-icon">📸</div>
+              <div class="d-main">Нажми или перетащи фото</div>
+              <div class="d-sub">JPG · PNG · WEBP</div>
+            </div>
+            <input type="file" id="file" accept="image/*">
+          </div>
+        </div>
+
+        <!-- Текст -->
+        <div class="f-group">
+          <div class="f-label">Текст карточки <span style="font-weight:400;text-transform:none">(по желанию)</span></div>
+          <textarea id="userText" placeholder="Заголовок, слоган, преимущества… Если пусто — AI напишет сам по фото."></textarea>
+        </div>
+
+        <!-- Маркетплейс + Размер -->
+        <div class="f-row">
+          <div class="f-group">
+            <div class="f-label">Маркетплейс</div>
+            <select id="mkt">
+              <option>WB</option><option>OZON</option><option>Kaspi</option><option>Halyk</option>
+            </select>
+          </div>
+          <div class="f-group">
+            <div class="f-label">Размер</div>
+            <select id="size">
+              <option value="1080x1080">Квадрат 1:1</option>
+              <option value="1080x1440">Вертикаль 3:4</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Количество + Режим -->
+        <div class="f-row">
+          <div class="f-group">
+            <div class="f-label">Кол-во фото</div>
+            <select id="count">
+              <option value="1">1 фото</option><option value="2">2 фото</option>
+              <option value="3" selected>3 фото</option><option value="4">4 фото</option><option value="5">5 фото</option>
+            </select>
+          </div>
+          <div class="f-group">
+            <div class="f-label">Режим дизайна</div>
+            <select id="bgMode">
+              <option value="creative">Креатив — ИИ рисует всё</option>
+              <option value="scene">Сцена + чёткий текст</option>
+              <option value="gradient">Чистый — без изменений</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Пожелание -->
+        <div class="f-group">
+          <div class="f-label">Пожелание к стилю <span style="font-weight:400;text-transform:none">(по желанию)</span></div>
+          <input type="text" id="wish" placeholder="премиум, ярко, тропики, минимализм…">
+          <div class="hint2">Креатив — ИИ рисует каждую карточку. Сцена — один фон + чёткий текст (дешевле). Чистый — товар не меняется.</div>
+        </div>
+
+        <!-- Кнопка -->
+        <button class="go2" id="go">✦ Создать карусель</button>
+
+      </div>
+    </div>
+
+    <!-- ПРАВАЯ ПАНЕЛЬ: Результат -->
+    <div class="result-panel">
+      <div class="result-hdr">
+        <span>📦 Результат</span>
+        <div class="result-acts">
+          <button class="r-btn" id="again" disabled>↻ Ещё раз</button>
+          <button class="r-btn" id="newbg" disabled>🎨 Новый фон</button>
+          <button class="r-btn" id="dl" disabled>⬇ Скачать всё</button>
+        </div>
+      </div>
+      <div class="preview2" id="preview">
+        <div class="empty-state">
+          <div class="big">🖼</div>
+          <div>Загрузи фото и нажми «Создать карусель»</div>
+        </div>
+      </div>
+      <div class="log2" id="log">Готов к работе. Загрузи фото товара и нажми «Создать карусель».</div>
+    </div>
+
+  </div>
+</div>
+<!-- ═══════════ АДМИН-ПАНЕЛЬ ═══════════ -->
+<div class="admin-layout" id="adminLayout">
+  <aside class="a-sidebar">
+    <div class="a-sb-logo">⚡ Vizual <span>AI</span></div>
+    <nav class="a-nav">
+      <div class="a-item active">👥 Пользователи</div>
+    </nav>
+    <div class="a-bottom">
+      <div class="a-email" id="aEmail">—</div>
+      <button class="a-logout" onclick="vaLogout()">Выйти</button>
+    </div>
+  </aside>
+  <div class="a-content">
+    <div class="a-hdr">
+      <div class="a-title">Пользователи Vizual AI</div>
+      <button class="a-btn-new" onclick="aOpenCreate()">+ Создать пользователя</button>
+    </div>
+    <div class="a-stats">
+      <div class="a-stat"><div class="a-stat-val" id="aTotal">—</div><div class="a-stat-lbl">Всего</div></div>
+      <div class="a-stat"><div class="a-stat-val" id="aTotalSp">—</div><div class="a-stat-lbl">Искр на балансах</div></div>
+      <div class="a-stat"><div class="a-stat-val" id="aZero">—</div><div class="a-stat-lbl">Кончились искры</div></div>
+      <div class="a-stat"><div class="a-stat-val" id="aToday">—</div><div class="a-stat-lbl">Зарег. сегодня</div></div>
+    </div>
+    <div class="a-toolbar">
+      <input class="a-search" id="aSearch" placeholder="🔍 Поиск по email..." oninput="aDoSearch()">
+      <button class="a-refresh" onclick="aLoadUsers()">↻ Обновить</button>
+    </div>
+    <div class="a-table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Email</th><th>Телефон</th><th>Искры</th><th>Дата</th><th>Начислить</th><th>Пароль</th></tr></thead>
+        <tbody id="aTbody"><tr class="a-loading"><td colspan="6">Загрузка...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- МОДАЛ: создать пользователя -->
+<div class="a-overlay" id="aCreateModal">
+  <div class="a-modal">
+    <h3>Новый пользователь</h3>
+    <label class="a-f-label">Email</label>
+    <input class="a-f-input" type="email" id="aNewEmail" placeholder="user@mail.com">
+    <label class="a-f-label">Номер телефона</label>
+    <input class="a-f-input" type="tel" id="aNewPhone" placeholder="+7 777 000 00 00">
+    <div class="a-mrow">
+      <div><label class="a-f-label">Пароль</label><input class="a-f-input" type="text" id="aNewPass" placeholder="мин. 6 символов"></div>
+      <div><label class="a-f-label">Искры</label><input class="a-f-input" type="number" id="aNewSparks" value="30" placeholder="30"></div>
+    </div>
+    <button class="a-create-btn" onclick="aCreateUser()">✦ Создать</button>
+    <button class="a-cancel-btn" onclick="aCloseCreate()">Отмена</button>
+    <div class="a-modal-err" id="aCreateErr"></div>
+    <div class="a-cred-box" id="aCredBox"></div>
+  </div>
+</div>
+<div class="a-toast" id="aToast"></div>
+
+<canvas id="cv" style="display:none"></canvas>
+
+<script>
+/* ===== Firebase: вход + искры + тарифы ===== */
+// ВСТАВЬ сюда firebaseConfig из консоли Firebase (Project settings → Your apps → Web):
+const firebaseConfig = {
+  apiKey: "AIzaSyBNCUIcrIyvANdZ4P-CJEn_EwlyMQM_Jus",
+  authDomain: "vizual-ai.firebaseapp.com",
+  projectId: "vizual-ai",
+  storageBucket: "vizual-ai.firebasestorage.app",
+  messagingSenderId: "173761098005",
+  appId: "1:173761098005:web:d0c3467065686ef31a791c"
 };
+const WHATSAPP = "77775864046"; // WhatsApp для оплаты
 
-// Разрешение для Nano Banana (КРЕАТИВ). '1K'=$0.08, '2K'=$0.12, '0.5K'=$0.06.
-const SCENE_RES = '1K';
+firebase.initializeApp(firebaseConfig);
+const _auth = firebase.auth();
+const _db = firebase.firestore();
+window.VA = { user:null, sparks:0 };
 
-function headers() {
-  return { 'Authorization': `Key ${FAL_KEY}`, 'Content-Type': 'application/json' };
-}
+function _updSparks(){ const e=document.getElementById('sparkCount'); if(e) e.textContent=window.VA.sparks; }
 
-// Быстрый синхронный вызов (картинки готовы за секунды)
-async function falSync(model, input) {
-  const r = await fetch(`${FAL_SYNC}/${model}`, {
-    method: 'POST', headers: headers(), body: JSON.stringify(input)
-  });
-  const txt = await r.text();
-  if (!r.ok) throw new Error(`${model} ${r.status}: ${txt.slice(0, 300)}`);
-  return JSON.parse(txt);
-}
+const ADMIN_EMAIL_VA = "ummamiko7@gmail.com";
+const PROXY_URL = "https://vizual-ai.onrender.com";
+const ADMIN_KEY = "vizual-admin-secret";
 
-// Очередь + поллинг (для видео — рендер до нескольких минут)
-async function falQueue(model, input, { tries = 90, delay = 4000 } = {}) {
-  const sub = await fetch(`${FAL_QUEUE}/${model}`, {
-    method: 'POST', headers: headers(), body: JSON.stringify(input)
-  });
-  const subTxt = await sub.text();
-  if (!sub.ok) throw new Error(`${model} submit ${sub.status}: ${subTxt.slice(0, 300)}`);
-  const { status_url, response_url } = JSON.parse(subTxt);
+_auth.onAuthStateChanged(async (u)=>{
+  const landing = document.getElementById('landing');
+  const appLayout = document.getElementById('appLayout');
+  const adminLayout = document.getElementById('adminLayout');
 
-  for (let i = 0; i < tries; i++) {
-    await new Promise(res => setTimeout(res, delay));
-    const st = await fetch(status_url, { headers: headers() });
-    const sj = await st.json();
-    console.log('  poll', i + 1, sj.status);
-    if (sj.status === 'COMPLETED') {
-      const res = await fetch(response_url, { headers: headers() });
-      return res.json();
+  if(u){
+    // ADMIN → показываем админку
+    if(u.email === ADMIN_EMAIL_VA){
+      landing.style.display='none';
+      appLayout.style.display='none';
+      adminLayout.style.display='block';
+      document.getElementById('aEmail').textContent = u.email;
+      aLoadUsers();
+      return;
     }
-    if (['FAILED', 'ERROR', 'CANCELLED'].includes(sj.status)) {
-      throw new Error(`${model}: ${sj.status}`);
+    // ОБЫЧНЫЙ ПОЛЬЗОВАТЕЛЬ → показываем генератор
+    window.VA.user=u;
+    landing.style.display='none';
+    appLayout.style.display='flex';
+    adminLayout.style.display='none';
+    document.getElementById('userBox').style.display='flex';
+    document.getElementById('uEmail').textContent=u.email;
+    const ref=_db.collection('users').doc(u.uid);
+    let snap; try{ snap=await ref.get(); }catch(e){ console.error(e); }
+    if(snap && !snap.exists){
+      await ref.set({ email:u.email, name:u.displayName||'', sparks:0, plan:'', createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+      window.VA.sparks=0;
+    }else if(snap){ window.VA.sparks=snap.data().sparks||0; }
+    _updSparks();
+  }else{
+    // НЕ ЗАЛОГИНЕН → показываем лендинг
+    window.VA.user=null;
+    landing.style.display='block';
+    appLayout.style.display='none';
+    adminLayout.style.display='none';
+    document.getElementById('userBox').style.display='none';
+  }
+});
+
+window.vaLogin=()=>document.getElementById('loginOverlay').classList.add('open');
+window.doEmailLogin=async()=>{
+  const email=document.getElementById('loginEmail').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  const errEl=document.getElementById('loginErr');
+  errEl.style.display='none';
+  try{
+    await _auth.signInWithEmailAndPassword(email,pass);
+    closeLogin();
+  }catch(e){
+    errEl.textContent=e.code==='auth/wrong-password'||e.code==='auth/user-not-found'?'Неверный email или пароль':e.message;
+    errEl.style.display='block';
+  }
+};
+window.vaLogout=()=>_auth.signOut();
+// Лендинг
+let _selPlan='',_selPrice='';
+window.openReg=(plan='',price='')=>{ _selPlan=plan;_selPrice=price;document.getElementById('regOverlay').classList.add('open'); };
+window.closeReg=()=>document.getElementById('regOverlay').classList.remove('open');
+window.landLogin=()=>document.getElementById('loginOverlay').classList.add('open');
+window.closeLogin=()=>document.getElementById('loginOverlay').classList.remove('open');
+window.switchReg=()=>{ closeLogin();openReg(); };
+window.doWA=()=>{ const t=encodeURIComponent(`Здравствуйте! Хочу купить Vizual AI${_selPlan?': '+_selPlan:''}${_selPrice?' за '+_selPrice:''}. Как оплатить?`); window.open(`https://wa.me/${WHATSAPP}?text=${t}`,'_blank'); };
+// клик вне модала закрывает
+document.getElementById('regOverlay').addEventListener('click',e=>{if(e.target===document.getElementById('regOverlay'))closeReg();});
+document.getElementById('loginOverlay').addEventListener('click',e=>{if(e.target===document.getElementById('loginOverlay'))closeLogin();});
+
+/* ══════ ADMIN FUNCTIONS ══════ */
+let _aUsers=[];
+async function aLoadUsers(){
+  document.getElementById('aTbody').innerHTML='<tr class="a-loading"><td colspan="6">Загрузка...</td></tr>';
+  try{
+    const snap=await _db.collection('users').orderBy('createdAt','desc').get();
+    _aUsers=[];
+    snap.forEach(d=>_aUsers.push({id:d.id,...d.data()}));
+    aUpdateStats(); aRenderTable(_aUsers);
+  }catch(e){
+    document.getElementById('aTbody').innerHTML=`<tr><td colspan="6" style="text-align:center;padding:32px;color:#ef4444">Ошибка: ${e.message}</td></tr>`;
+  }
+}
+function aUpdateStats(){
+  const today=new Date();today.setHours(0,0,0,0);
+  let sp=0,zero=0,reg=0;
+  _aUsers.forEach(u=>{sp+=u.sparks||0;if((u.sparks||0)===0)zero++;const d=u.createdAt?.toDate?.();if(d&&d>=today)reg++;});
+  document.getElementById('aTotal').textContent=_aUsers.length;
+  document.getElementById('aTotalSp').textContent=sp;
+  document.getElementById('aZero').textContent=zero;
+  document.getElementById('aToday').textContent=reg;
+}
+function aRenderTable(list){
+  const tb=document.getElementById('aTbody');
+  if(!list.length){tb.innerHTML='<tr class="a-empty"><td colspan="6">Пока нет пользователей. Создайте первого!</td></tr>';return;}
+  tb.innerHTML=list.map((u,i)=>{
+    const sp=u.sparks||0;
+    const date=u.createdAt?.toDate?.()?.toLocaleDateString('ru-RU')||'—';
+    return `<tr>
+      <td style="color:var(--muted);font-size:12px">${i+1}</td>
+      <td style="font-weight:700">${u.email||'—'}</td>
+      <td style="color:var(--muted);font-size:13px">${u.phone||'—'}</td>
+      <td><span class="sp-badge${sp===0?' zero':''}">⚡ ${sp}</span></td>
+      <td style="color:var(--muted);font-size:13px">${date}</td>
+      <td><div class="a-acts">
+        <button class="aqb" onclick="aAdd('${u.id}',30)">+30</button>
+        <button class="aqb" onclick="aAdd('${u.id}',50)">+50</button>
+        <button class="aqb" onclick="aAdd('${u.id}',100)">+100</button>
+        <input class="a-inp" type="number" id="ac_${u.id}" placeholder="N">
+        <button class="a-add-btn" onclick="aAddCustom('${u.id}')">+</button>
+        <button class="aqb red" onclick="aAdd('${u.id}',-1)">−1</button>
+      </div></td>
+      <td><div class="a-acts">
+        <input class="a-inp a-inp-lg" type="text" id="ap_${u.id}" placeholder="новый пароль">
+        <button class="aqb" onclick="aChangePwd('${u.id}')">Сменить</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+function aDoSearch(){
+  const q=document.getElementById('aSearch').value.toLowerCase();
+  aRenderTable(q?_aUsers.filter(u=>(u.email||'').toLowerCase().includes(q)):_aUsers);
+}
+async function aAdd(uid,amount){
+  try{
+    await _db.collection('users').doc(uid).update({sparks:firebase.firestore.FieldValue.increment(amount)});
+    const u=_aUsers.find(x=>x.id===uid);if(u)u.sparks=(u.sparks||0)+amount;
+    aUpdateStats();aDoSearch();
+    aToast(amount>0?`✅ +${amount} искр начислено`:`🔻 ${Math.abs(amount)} искра списана`);
+  }catch(e){aToast('Ошибка: '+e.message,true);}
+}
+function aAddCustom(uid){const v=parseInt(document.getElementById('ac_'+uid).value);if(!v||isNaN(v))return;aAdd(uid,v);document.getElementById('ac_'+uid).value='';}
+async function aChangePwd(uid){
+  const pwd=document.getElementById('ap_'+uid).value.trim();
+  if(!pwd||pwd.length<6){aToast('Пароль минимум 6 символов',true);return;}
+  try{
+    const r=await fetch(`${PROXY_URL}/api/admin/update-password`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({uid,password:pwd,adminKey:ADMIN_KEY})});
+    const d=await r.json();if(d.error)throw new Error(d.error);
+    document.getElementById('ap_'+uid).value='';aToast('✅ Пароль изменён');
+  }catch(e){aToast('Ошибка: '+e.message,true);}
+}
+function aOpenCreate(){
+  ['aNewEmail','aNewPass','aNewPhone'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('aNewSparks').value='30';
+  document.getElementById('aCreateErr').style.display='none';
+  document.getElementById('aCredBox').style.display='none';
+  document.getElementById('aCreateModal').classList.add('open');
+}
+function aCloseCreate(){document.getElementById('aCreateModal').classList.remove('open');}
+async function aCreateUser(){
+  const email=document.getElementById('aNewEmail').value.trim();
+  const phone=document.getElementById('aNewPhone').value.trim();
+  const password=document.getElementById('aNewPass').value.trim();
+  const sparks=parseInt(document.getElementById('aNewSparks').value)||30;
+  const errEl=document.getElementById('aCreateErr');errEl.style.display='none';
+  if(!email||!password){errEl.textContent='Заполните email и пароль';errEl.style.display='block';return;}
+  if(password.length<6){errEl.textContent='Пароль минимум 6 символов';errEl.style.display='block';return;}
+  try{
+    const r=await fetch(`${PROXY_URL}/api/admin/create-user`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password,sparks,phone,adminKey:ADMIN_KEY})});
+    const d=await r.json();if(d.error)throw new Error(d.error);
+    const credBox=document.getElementById('aCredBox');
+    credBox.innerHTML=`<b>Данные для клиента:</b><br>🌐 vermillion-starlight-c3893a.netlify.app/vizual.html<br>📧 Логин: <b>${email}</b><br>🔑 Пароль: <b>${password}</b>${phone?'<br>📱 Телефон: <b>'+phone+'</b>':''}<br>⚡ Искры: <b>${sparks}</b>`;
+    credBox.style.display='block';
+    aToast(`✅ Создан: ${email}`);aLoadUsers();
+  }catch(e){errEl.textContent='Ошибка: '+e.message;errEl.style.display='block';}
+}
+let _aToastT;
+function aToast(msg,err=false){
+  const el=document.getElementById('aToast');el.textContent=msg;
+  el.className='a-toast show'+(err?' err':'');
+  clearTimeout(_aToastT);_aToastT=setTimeout(()=>el.classList.remove('show'),3000);
+}
+window.aOpenCreate=aOpenCreate;window.aCloseCreate=aCloseCreate;window.aCreateUser=aCreateUser;
+window.aAdd=aAdd;window.aAddCustom=aAddCustom;window.aChangePwd=aChangePwd;
+window.aDoSearch=aDoSearch;window.aLoadUsers=aLoadUsers;
+window.vaOpenTariffs=()=>{ document.getElementById('tariffModal').style.display='flex'; };
+window.vaCloseTariffs=()=>{ document.getElementById('tariffModal').style.display='none'; };
+window.vaRefreshSparks=async()=>{ if(!window.VA.user)return; const s=await _db.collection('users').doc(window.VA.user.uid).get(); window.VA.sparks=s.data().sparks||0; _updSparks(); };
+window.vaSpendSpark=async()=>{
+  if(!window.VA.user)return;
+  await _db.collection('users').doc(window.VA.user.uid).update({ sparks:firebase.firestore.FieldValue.increment(-1) });
+  window.VA.sparks=Math.max(0,window.VA.sparks-1); _updSparks();
+};
+window.vaBuy=(plan,price)=>{
+  const email=window.VA.user?window.VA.user.email:'';
+  const text=encodeURIComponent(`Здравствуйте! Хочу купить тариф Vizual AI: ${plan} за ${price}. Мой email: ${email}`);
+  window.open(`https://wa.me/${WHATSAPP}?text=${text}`,'_blank');
+};
+</script>
+
+<script>
+const PROXY = 'https://vizual-ai.onrender.com';
+const $ = s => document.querySelector(s);
+const logEl = $('#log');
+function log(msg,cls){logEl.innerHTML+=`\n<span class="${cls||''}">${msg}</span>`;logEl.scrollTop=logEl.scrollHeight;}
+function clearLog(){logEl.innerHTML='';}
+
+// ключ Claude (без захардкоженного дефолта!)
+const kClaudeEl = $('#kClaude');
+kClaudeEl.value = localStorage.getItem('kClaude')||'';
+kClaudeEl.addEventListener('input',()=>localStorage.setItem('kClaude',kClaudeEl.value));
+
+// загрузка фото
+let imgB64 = null;
+const drop=$('#drop'),fileInp=$('#file');
+// input покрывает всю зону (z-index:10) и сам открывает диалог при клике —
+// отдельный обработчик клика НЕ нужен (вызывал двойное срабатывание)
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.style.borderColor='#3b82f6'});
+drop.addEventListener('dragleave',()=>drop.style.borderColor='');
+drop.addEventListener('drop',e=>{e.preventDefault();drop.style.borderColor='';if(e.dataTransfer.files[0])loadPhoto(e.dataTransfer.files[0])});
+fileInp.addEventListener('change',e=>{if(e.target.files[0])loadPhoto(e.target.files[0])});
+function loadPhoto(f){
+  const r=new FileReader();
+  r.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const MAX=1400;
+      let w=img.width,h=img.height;
+      if(Math.max(w,h)>MAX){const k=MAX/Math.max(w,h);w=Math.round(w*k);h=Math.round(h*k);}
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      imgB64=c.toDataURL('image/jpeg',0.9);
+      sceneCache=null;
+      // показываем превью, НО оставляем input на месте чтобы можно было сменить фото
+      const phEl=$('#ph');
+      if(phEl) phEl.innerHTML=`<img src="${imgB64}" style="max-width:100%;max-height:180px;border-radius:10px">`;
+      drop.classList.add('has');
+    };
+    img.onerror=()=>{imgB64=r.result;const phEl=$('#ph');if(phEl)phEl.innerHTML=`<img src="${imgB64}" style="max-width:100%;max-height:180px;border-radius:10px">`;drop.classList.add('has');};
+    img.src=r.result;
+  };
+  r.readAsDataURL(f);
+}
+
+function hexToRgb(hex){const h=(hex||'#0033aa').replace('#','');return{r:parseInt(h.slice(0,2),16)||0,g:parseInt(h.slice(2,4),16)||51,b:parseInt(h.slice(4,6),16)||170};}
+function wrapText(ctx,text,maxW){const w=String(text).split(' ');const L=[];let c='';for(const x of w){const t=c?c+' '+x:x;if(ctx.measureText(t).width>maxW&&c){L.push(c);c=x;}else c=t;}if(c)L.push(c);return L;}
+function loadImg(src){return new Promise((res,rej)=>{const i=new Image();i.crossOrigin='anonymous';i.onload=()=>res(i);i.onerror=rej;i.src=src;});}
+function drawCover(ctx,img,x,y,w,h){const ir=img.width/img.height,r=w/h;let dw,dh;if(ir>r){dh=h;dw=h*ir;}else{dw=w;dh=w/ir;}ctx.drawImage(img,x+(w-dw)/2,y+(h-dh)/2,dw,dh);}
+
+// ===== ШАГ 1: Claude (Haiku) — N разных слайдов =====
+async function callClaude(key,mkt,wish,userText,count,aspect){
+  const data=imgB64.replace(/^data:image\/\w+;base64,/,'');
+  let mt='image/jpeg';
+  if(imgB64.includes('image/png'))mt='image/png';
+  if(imgB64.includes('image/webp'))mt='image/webp';
+
+  const hasText=userText&&userText.trim().length>3;
+  const textRule=hasText
+    ?`ВАЖНО: пользователь задал свой текст. Используй ТОЛЬКО его, ничего не выдумывай сверх. Раскидай его по ${count} слайдам по смыслу.\nТЕКСТ ПОЛЬЗОВАТЕЛЯ:\n"""${userText.trim()}"""`
+    :`Текст не задан — придумай сам по фото, продающий и грамотный.`;
+
+  const prompt=`Маркетплейс: ${mkt}. Стиль: "${wish||'премиум, ярко'}". Формат: ${aspect}.
+Нужно ${count} РАЗНЫХ слайдов карусели. Бренд/категория одинаковые везде, но КАЖДЫЙ слайд про своё и со своим слоганом:
+слайд 1 — герой/главное, 2 — ключевая выгода, 3 — для кого/применение, 4 — качество/состав, 5 — акция/призыв.
+${textRule}
+
+Верни ТОЛЬКО JSON:
+{
+ "productCategory":"категория ЗАГЛАВНЫМИ",
+ "brand":"бренд или модель ЗАГЛАВНЫМИ",
+ "mainColor":"точный HEX цвета товара",
+ "accentColor":"HEX яркий акцент",
+ "slides":[
+   {
+     "headline":"крупный заголовок ЗАГЛАВНЫМИ",
+     "subHeadline":"короткий подзаголовок/вкус ЗАГЛАВНЫМИ или пусто",
+     "tagline":"слоган 3-6 слов — СВОЙ на каждом слайде",
+     "features":[{"icon":"эмодзи","title":"ЗАГОЛОВОК","desc":"кратко"},{"icon":"эмодзи","title":"ЗАГОЛОВОК","desc":"кратко"},{"icon":"эмодзи","title":"ЗАГОЛОВОК","desc":"кратко"}],
+     "cta":"призыв 2-4 слова",
+     "ctaButton":"кнопка 2-3 слова",
+     "volumeBadge":"объём/размер или пусто",
+     "volumeLabel":"подпись или пусто",
+     "bottomIcons":[{"title":"КОРОТКО","desc":"кратко"},{"title":"КОРОТКО","desc":"кратко"},{"title":"КОРОТКО","desc":"кратко"},{"title":"КОРОТКО","desc":"кратко"}],
+     "imagePrompt":"English. Design a COMPLETE, beautiful ${aspect} marketplace product card, your own creative layout. Keep the product from the reference image 100% identical (shape, colors, logo, real label) — do not redraw the product. Render ON the card EXACTLY this text with PERFECT spelling (Cyrillic/Kazakh, do not alter any letters): category tag <productCategory>; big title <headline>; subtitle <subHeadline>; slogan <tagline>; three short feature lines from features; CTA button <cta>. Vivid premium e-commerce style, clean readable typography, palette around <mainColor> with <accentColor> accents, dynamic background fitting the product, photorealistic. Put the SAME exact Russian text, not English. 130 words."
+   }
+ ]
+}
+Сделай РОВНО ${count} слайдов в массиве "slides". В каждом imagePrompt подставь реальные тексты этого слайда.`;
+
+  const r=await fetch(`${PROXY}/api/claude`,{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:Math.min(8000,1500+count*1100),messages:[{role:'user',content:[
+      {type:'image',source:{type:'base64',media_type:mt,data}},
+      {type:'text',text:prompt}
+    ]}]})
+  });
+  if(!r.ok)throw new Error('Claude '+r.status+': '+(await r.text()).slice(0,120));
+  const j=await r.json();
+  let t=j.content[0].text.trim().replace(/```json\n?/gi,'').replace(/```\n?/g,'').trim();
+  const m=t.match(/\{[\s\S]*\}/);
+  const info=JSON.parse(m?m[0]:t);
+  if(!info.slides||!info.slides.length){
+    // подстраховка: старый формат → один слайд
+    info.slides=[{headline:info.headline,subHeadline:info.subHeadline,tagline:info.tagline,features:info.features,cta:info.cta,ctaButton:info.ctaButton,volumeBadge:info.volumeBadge,volumeLabel:info.volumeLabel,bottomIcons:info.bottomIcons,imagePrompt:info.scenePrompt}];
+  }
+  return info;
+}
+
+// фиксированный промпт сцены для режима "Сцена" (товар не перерисовываем)
+function buildScenePrompt(info){
+  return `English. Premium e-commerce hero scene. CRITICAL: keep the product from the reference image 100% identical — same shape, colors, logo and ALL label text, do NOT redraw it. Product on the RIGHT, keep the LEFT third calm/empty for text. Soft top-right studio light, condensation, a dynamic color-matched splash, 2 matching props/fruit, clean glossy surface with reflection. Palette around ${info.mainColor||'#0033aa'}. Photorealistic, advertising quality, cohesive background. 80 words.`;
+}
+
+// ===== fal.ai через proxy =====
+async function falCutout(imageDataUri){
+  const r=await fetch(`${PROXY}/api/cutout`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image:imageDataUri})});
+  if(!r.ok)throw new Error('cutout: '+(await r.text()).slice(0,160));
+  return (await r.json()).url;
+}
+async function falScene(prompt,refImages,cheap){
+  const r=await fetch(`${PROXY}/api/scene`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({prompt,images:refImages,cheap:!!cheap})});
+  if(!r.ok)throw new Error('scene: '+(await r.text()).slice(0,160));
+  return (await r.json()).url;
+}
+
+// ===== фон для режима "градиент" =====
+function buildBg(info,W,H){
+  const rgb=hexToRgb(info.mainColor);
+  const c=document.createElement('canvas');c.width=W;c.height=H;
+  const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,W,H);
+  g.addColorStop(0,`rgb(${Math.min(255,rgb.r+40)},${Math.min(255,rgb.g+25)},${Math.min(255,rgb.b+50)})`);
+  g.addColorStop(.5,`rgb(${rgb.r},${rgb.g},${rgb.b})`);
+  g.addColorStop(1,`rgb(${Math.max(0,rgb.r-50)},${Math.max(0,rgb.g-35)},${Math.max(0,rgb.b-25)})`);
+  x.fillStyle=g;x.fillRect(0,0,W,H);
+  for(let i=0;i<28;i++){
+    const px=Math.random()*W,py=Math.random()*H,r=15+Math.random()*90;
+    const b=x.createRadialGradient(px,py,0,px,py,r);
+    b.addColorStop(0,`rgba(255,255,200,${.04+Math.random()*.09})`);b.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=b;x.fillRect(0,0,W,H);
+  }
+  for(let i=0;i<6;i++){
+    const lx=W*(.15+Math.random()*.75);
+    const lg=x.createLinearGradient(lx-40,0,lx+40,H);
+    lg.addColorStop(0,'rgba(255,255,255,.07)');lg.addColorStop(.5,'rgba(255,255,255,.02)');lg.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=lg;x.fillRect(lx-40,0,80,H);
+  }
+  return c;
+}
+
+// ===== ГЛАВНАЯ ГЕНЕРАЦИЯ =====
+let GALLERY=[]; let CUR=0;
+let sceneCache=null; // {key, hero} — запомненный AI-фон, чтобы не платить за повтор
+
+async function generate(forceNewBg=false){
+  if(!window.VA||!window.VA.user){ window.vaLogin&&window.vaLogin(); return; }
+  if(!imgB64){alert('Загрузи фото товара');return;}
+  await window.vaRefreshSparks();
+  if(window.VA.sparks<=0){ window.vaOpenTariffs(); return; }
+
+  const[W,H]=$('#size').value.split('x').map(Number);
+  const mkt=$('#mkt').value,wish=$('#wish').value,userText=$('#userText').value;
+  const count=parseInt($('#count').value)||1;
+  const bgMode=$('#bgMode').value;
+
+  $('#go').disabled=true;$('#dl').disabled=true;$('#again').disabled=true;$('#newbg').disabled=true;
+  GALLERY=[];CUR=0;clearLog();
+  $('#preview').innerHTML='<div class="spin"></div>';
+
+  try{
+    const aspect = (W===H) ? 'square 1:1' : (W<H ? 'vertical 4:5' : 'horizontal');
+    log(`[1] Claude придумывает ${count} слайдов…`);
+    const info=await callClaude(null,mkt,wish,userText,count,aspect);
+    const slides=(info.slides&&info.slides.length)?info.slides:[info];
+    log(`  ${info.brand||info.productCategory||''} · ${slides.length} слайдов ✓`,'ok');
+
+    let cutoutUrl=null, sharedHero=null;
+    if(bgMode==='gradient'){
+      log('[2] Вырезаю фон (товар не меняется)…');
+      cutoutUrl=await falCutout(imgB64);
+      log('  вырез готов ✓','ok');
+    }else if(bgMode==='scene'){
+      const key=bgMode+'|'+W+'x'+H+'|'+imgB64.length;
+      if(!forceNewBg && sceneCache && sceneCache.key===key){
+        sharedHero=sceneCache.hero;
+        log('[2] Фон взят из кэша — $0 ✓','ok');
+      }else{
+        log('[2] ИИ рисует сцену (1 раз на всю карусель)…','wa');
+        sharedHero=await falScene(buildScenePrompt(info), [imgB64], true); // cheap=Seedream
+        sceneCache={key,hero:sharedHero};
+        log('  сцена готова ✓','ok');
+      }
+    }
+
+    log(`[3] Собираю ${count} карточек…`);
+    for(let i=0;i<count;i++){
+      const slide=slides[i%slides.length];
+      const sInfo=Object.assign({},info,slide); // цвета+категория + поля слайда
+      let url;
+      if(bgMode==='creative'){
+        log(`  ИИ рисует карточку ${i+1}/${count}…`,'wa');
+        url=await falScene(slide.imagePrompt, [imgB64]); // вся карточка от ИИ (платная каждая)
+      }else if(bgMode==='scene'){
+        url=await composeCard(sharedHero,'scene',sInfo,W,H,i); // 1 картинка, разный текст+кадр на слайд
+      }else{
+        url=await composeCard(cutoutUrl,'cutout',sInfo,W,H,i);
+      }
+      GALLERY.push({type:'img',url});
+      log(`  карточка ${i+1}/${count} ✓`,'ok');
+      renderGallery();
+    }
+
+    await window.vaSpendSpark(); // 1 искра за генерацию (вся карусель)
+    log('ГОТОВО ✓  (−1 искра, осталось '+window.VA.sparks+')','ok');
+    $('#dl').disabled=false;$('#again').disabled=false;$('#newbg').disabled=false;
+  }catch(e){
+    log('Ошибка: '+e.message,'er');
+    $('#preview').innerHTML='<div class="empty"><div class="big">⚠</div>'+e.message+'</div>';
+  }finally{
+    $('#go').disabled=false;
+  }
+}
+
+// ===== Карусель =====
+function renderGallery(){
+  if(!GALLERY.length)return;
+  if(CUR>=GALLERY.length)CUR=GALLERY.length-1;
+  const it=GALLERY[CUR];
+  const media=it.type==='video'
+    ? `<video src="${it.url}" controls autoplay loop muted></video>`
+    : `<img src="${it.url}">`;
+  const dots=GALLERY.map((g,i)=>`<div class="dot ${i===CUR?'active':''}" onclick="goTo(${i})"></div>`).join('');
+  const tag=it.type==='video'?'🎬 Видео':`Фото ${CUR+1}`;
+  $('#preview').innerHTML=`
+    <div class="carousel">
+      <span class="tag">${tag}</span>
+      ${GALLERY.length>1?'<button class="nav prev" onclick="goRel(-1)">‹</button><button class="nav next" onclick="goRel(1)">›</button>':''}
+      ${media}
+      ${GALLERY.length>1?`<div class="dots">${dots}</div>`:''}
+    </div>`;
+}
+window.goTo=i=>{CUR=i;renderGallery();};
+window.goRel=d=>{CUR=(CUR+d+GALLERY.length)%GALLERY.length;renderGallery();};
+
+// ===== СБОРКА КАРТОЧКИ =====
+// разное кадрирование одной и той же сцены на каждом слайде → визуальное разнообразие бесплатно
+function drawCoverVariant(ctx,img,W,H,vi){
+  const zoom=[1.0,1.18,1.10,1.25,1.08][vi%5];
+  const fx=[0.5,0.72,0.30,0.62,0.40][vi%5];
+  const fy=[0.5,0.42,0.58,0.40,0.60][vi%5];
+  const ir=img.width/img.height,r=W/H;
+  let dw,dh;
+  if(ir>r){dh=H*zoom;dw=dh*ir;}else{dw=W*zoom;dh=dw/ir;}
+  ctx.drawImage(img,(W-dw)*fx,(H-dh)*fy,dw,dh);
+}
+function shiftHue(hex,deg){
+  const h=(hex||'#f5a623').replace('#','');
+  let r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+  r/=255;g/=255;b/=255;
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let hh=0,s=0,l=(mx+mn)/2;
+  if(mx!==mn){const d=mx-mn;s=l>.5?d/(2-mx-mn):d/(mx+mn);
+    hh=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;hh/=6;}
+  hh=(hh*360+deg)%360;if(hh<0)hh+=360;hh/=360;
+  const hue2=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
+  let R,G,B;if(s===0){R=G=B=l;}else{const q=l<.5?l*(1+s):l+s-l*s,p=2*l-q;R=hue2(p,q,hh+1/3);G=hue2(p,q,hh);B=hue2(p,q,hh-1/3);}
+  const x=n=>('0'+Math.round(n*255).toString(16)).slice(-2);
+  return '#'+x(R)+x(G)+x(B);
+}
+
+async function composeCard(heroSrc,heroMode,info,W,H,vi=0){
+  const cv=$('#cv');cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');
+  const main=info.mainColor||'#0033aa';
+  // акцент чуть смещаем по тону на каждом слайде → не приедается
+  const accent=shiftHue(info.accentColor||'#f5a623',[0,18,-15,30,-28][vi%5]);
+
+  if(heroMode==='scene'){
+    // hero = товар уже в фотореалистичной сцене → кадрируем по-разному на каждом слайде
+    const hero=await loadImg(heroSrc);
+    drawCoverVariant(ctx,hero,W,H,vi);
+  }else{
+    // hero = вырезанная банка (прозрачный PNG) на градиенте
+    const bg=buildBg(info,W,H);ctx.drawImage(bg,0,0,W,H);
+    const prod=await loadImg(heroSrc);
+    const maxPW=W*0.58,maxPH=H*0.78;
+    let pw=prod.width,ph=prod.height;
+    const sc=Math.min(maxPW/pw,maxPH/ph);pw=Math.round(pw*sc);ph=Math.round(ph*sc);
+    const pLeft=Math.round(W*0.40),pBottom=Math.round(H*0.84),pTop=pBottom-ph;
+    // контактная тень
+    ctx.save();
+    const cs=ctx.createRadialGradient(pLeft+pw/2,pBottom,0,pLeft+pw/2,pBottom,pw*0.5);
+    cs.addColorStop(0,'rgba(0,0,0,.55)');cs.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=cs;ctx.beginPath();ctx.ellipse(pLeft+pw/2,pBottom,pw*0.46,22,0,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+    // drop shadow
+    ctx.save();ctx.globalAlpha=.3;ctx.filter='blur(16px)';
+    ctx.drawImage(prod,pLeft+16,pTop+20,pw,ph);
+    ctx.filter='none';ctx.globalAlpha=1;ctx.restore();
+    // товар
+    ctx.drawImage(prod,pLeft,pTop,pw,ph);
+    // rim блик
+    ctx.save();
+    const rim=ctx.createRadialGradient(pLeft+pw*0.72,pTop+ph*0.18,0,pLeft+pw*0.72,pTop+ph*0.18,pw*0.7);
+    rim.addColorStop(0,'rgba(255,255,255,.20)');rim.addColorStop(.5,'rgba(255,255,255,.04)');rim.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.globalCompositeOperation='screen';ctx.fillStyle=rim;ctx.fillRect(pLeft,pTop,pw,ph);ctx.restore();
+  }
+
+  drawTextLayer(ctx,info,W,H,accent,main);
+
+  return cv.toDataURL('image/jpeg',0.96);
+}
+
+// общий текстовый слой (одинаков для обоих режимов)
+function drawTextLayer(ctx,info,W,H,accent,main){
+  const textX=Math.round(W*0.05),textW=Math.round(W*0.42);
+  const botH=Math.round(H*0.13),accH=Math.round(H*0.08),botTop=H-botH-accH;
+
+  // затемнение слева (читаемость текста)
+  const ov=ctx.createLinearGradient(0,0,W*0.62,0);
+  ov.addColorStop(0,'rgba(0,0,25,.85)');ov.addColorStop(.55,'rgba(0,0,15,.38)');ov.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=ov;ctx.fillRect(0,0,W,botTop);
+
+  // виньетка
+  const vg=ctx.createRadialGradient(W/2,H/2,W*0.38,W/2,H/2,W*0.88);
+  vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.40)');
+  ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+
+  // нижние полосы
+  ctx.fillStyle='rgba(0,5,25,.97)';ctx.fillRect(0,botTop,W,botH);
+  ctx.fillStyle=accent;ctx.fillRect(0,H-accH,W,accH);
+
+  // CTA
+  ctx.fillStyle='#fff';ctx.font=`900 italic ${Math.round(W*0.034)}px Arial`;
+  ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.fillText((info.cta||'').toUpperCase()+'!',textX,H-Math.round(accH*0.5));
+
+  // кнопка
+  const bW=Math.round(W*0.36),bH2=Math.round(accH*0.70);
+  const bX=W-bW-Math.round(W*0.04),bY=H-accH+Math.round((accH-bH2)/2);
+  ctx.fillStyle='rgba(255,255,255,.96)';ctx.beginPath();ctx.roundRect(bX,bY,bW,bH2,30);ctx.fill();
+  ctx.fillStyle='#333';ctx.font=`bold ${Math.round(W*0.017)}px Arial`;ctx.textAlign='center';
+  ctx.fillText('♥  '+(info.ctaButton||'').toUpperCase(),bX+bW/2,bY+bH2/2);
+
+  // категория
+  ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.font=`bold ${Math.round(W*0.018)}px Arial`;
+  const ct=(info.productCategory||'').toUpperCase();const cw=ctx.measureText(ct).width+22;
+  ctx.fillStyle='rgba(120,35,185,.96)';ctx.beginPath();ctx.roundRect(textX,Math.round(H*0.042),cw,34,6);ctx.fill();
+  ctx.fillStyle='#fff';ctx.fillText(ct,textX+11,Math.round(H*0.042)+17);
+
+  // headline
+  ctx.textBaseline='top';ctx.fillStyle='#fff';ctx.font=`900 ${Math.round(W*0.118)}px Arial`;
+  ctx.shadowColor='rgba(0,0,0,.6)';ctx.shadowBlur=22;ctx.shadowOffsetY=3;
+  const hl=wrapText(ctx,(info.headline||'').toUpperCase(),textW+60);
+  hl.slice(0,2).forEach((l,i)=>ctx.fillText(l,textX,H*0.082+i*Math.round(W*0.120)));
+  ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+  let after=H*0.082+Math.min(hl.length,2)*Math.round(W*0.120)+8;
+
+  // sub badge (рисуем только если есть текст — иначе не оставляем пустую плашку)
+  const sub=(info.subHeadline||'').trim();
+  if(sub){
+    ctx.font=`bold ${Math.round(W*0.036)}px Arial`;
+    const st=sub.toUpperCase();const sw=Math.min(ctx.measureText(st).width+36,textW);
+    ctx.fillStyle=accent;ctx.fillRect(textX,after,sw,56);
+    ctx.fillStyle='#fff';ctx.fillText(st,textX+14,after+14);
+    after+=68;
+  }else{
+    after+=10;
+  }
+
+  // tagline
+  ctx.fillStyle='#fff';ctx.font=`bold ${Math.round(W*0.046)}px Arial`;
+  ctx.shadowColor='rgba(0,0,0,.5)';ctx.shadowBlur=12;
+  const tg=wrapText(ctx,info.tagline||'',textW+20);
+  tg.slice(0,2).forEach((l,i)=>ctx.fillText(l,textX,after+i*Math.round(W*0.054)));
+  ctx.shadowBlur=0;
+  after+=Math.min(tg.length,2)*Math.round(W*0.054)+20;
+  ctx.fillStyle='rgba(255,255,255,.35)';ctx.fillRect(textX,after,52,2);after+=18;
+
+  // features
+  const gap=Math.round(H*0.083);let fy=after;
+  (info.features||[]).slice(0,3).forEach((f,i)=>{
+    if(fy+50>botTop-130){fy+=gap;return;}
+    ctx.fillStyle=main;ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(textX+26,fy+26,26,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.font=`${Math.round(W*0.030)}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillStyle='#fff';ctx.fillText(f.icon||'●',textX+26,fy+26);ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.font=`bold ${Math.round(W*0.026)}px Arial`;
+    const tl=wrapText(ctx,f.title||'',textW-65);
+    tl.slice(0,2).forEach((l,j)=>ctx.fillText(l,textX+62,fy+4+j*Math.round(W*0.030)));
+    const dt=fy+4+Math.min(tl.length,2)*Math.round(W*0.030)+2;
+    ctx.fillStyle='rgba(255,255,255,.62)';ctx.font=`${Math.round(W*0.019)}px Arial`;
+    ctx.fillText(f.desc||'',textX+62,dt);
+    fy+=gap;
+  });
+
+  // volume badge
+  if(info.volumeBadge){
+    const vy=Math.min(fy+12,botTop-Math.round(H*0.135));
+    if(vy+Math.round(H*0.10)<botTop){
+      const vw=Math.round(W*0.32),vh=Math.round(H*0.10);
+      ctx.fillStyle='rgba(0,5,40,.90)';ctx.strokeStyle='rgba(255,255,255,.22)';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.roundRect(textX,vy,vw,vh,20);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#fff';ctx.font=`900 ${Math.round(W*0.052)}px Arial`;ctx.textBaseline='top';
+      ctx.fillText(info.volumeBadge,textX+16,vy+Math.round(vh*0.08));
+      ctx.fillStyle='rgba(255,255,255,.55)';ctx.font=`${Math.round(W*0.016)}px Arial`;
+      ctx.fillText(info.volumeLabel||'',textX+16,vy+Math.round(vh*0.65));
     }
   }
-  throw new Error('Timeout');
+
+  // bottom icons
+  const bi=info.bottomIcons||[];const colW=W/Math.max(bi.length,1);const sym=['▣','⚇','✦','◎'];
+  bi.slice(0,4).forEach((it,i)=>{
+    const cx=colW*i+colW/2;
+    if(i>0){ctx.strokeStyle='rgba(255,255,255,.14)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(colW*i,botTop+12);ctx.lineTo(colW*i,botTop+botH-12);ctx.stroke();}
+    ctx.fillStyle='rgba(255,255,255,.10)';ctx.strokeStyle=accent;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(cx,botTop+Math.round(botH*0.26),18,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle=accent;ctx.font=`${Math.round(W*0.022)}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(sym[i]||'●',cx,botTop+Math.round(botH*0.26));
+    ctx.fillStyle='#fff';ctx.font=`bold ${Math.round(W*0.013)}px Arial`;
+    ctx.fillText((it.title||'').toUpperCase(),cx,botTop+Math.round(botH*0.54));
+    ctx.fillStyle='rgba(255,255,255,.50)';ctx.font=`${Math.round(W*0.011)}px Arial`;
+    const dw=(it.desc||'').split(' ');
+    if(dw.length>2){ctx.fillText(dw.slice(0,2).join(' '),cx,botTop+Math.round(botH*0.72));ctx.fillText(dw.slice(2).join(' '),cx,botTop+Math.round(botH*0.88));}
+    else ctx.fillText(it.desc||'',cx,botTop+Math.round(botH*0.78));
+  });
+
+  ctx.textAlign='left';ctx.textBaseline='top';
 }
 
-// ── 1) ВЫРЕЗ ФОНА ────────────────────────────────────────────────
-// Вход:  { image }  — data URI (data:image/...;base64,...) ИЛИ обычный URL
-// Выход: { url }    — твоя банка на прозрачном PNG (товар не меняется!)
-app.post('/api/cutout', async (req, res) => {
-  try {
-    const { image } = req.body;
-    if (!image) throw new Error('Нет image');
-    const data = await falSync(MODELS.cutout, { image_url: image });
-    const url = data.image?.url || data.images?.[0]?.url;
-    if (!url) throw new Error('Нет url: ' + JSON.stringify(data).slice(0, 200));
-    res.json({ url });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+$('#go').addEventListener('click',()=>generate(false));
+$('#again').addEventListener('click',()=>generate(false)); // тот же фон из кэша → $0 (режим Сцена)
+$('#newbg').addEventListener('click',()=>generate(true));  // принудительно новый AI-фон (платно)
+$('#dl').addEventListener('click',async()=>{
+  if(!GALLERY.length)return;
+  for(let i=0;i<GALLERY.length;i++){
+    const it=GALLERY[i];
+    const a=document.createElement('a');
+    if(it.type==='video'){a.href=it.url;a.download='vizual-video.mp4';a.target='_blank';}
+    else{a.href=it.url;a.download=`vizual-${i+1}.jpg`;}
+    a.click();
+    await new Promise(r=>setTimeout(r,400));
+  }
 });
-
-// ── 2) СЦЕНА (Nano Banana 2) ─────────────────────────────────────
-// Вход:  { prompt, images? }
-//   - images передан (массив data URI/URL) → режим EDIT: рисуем сцену ВОКРУГ товара,
-//     банку держим как референс (Nano Banana сохраняет её намного лучше flux-kontext)
-//   - images нет → генерим чистый фон/сцену БЕЗ товара (потом банку кладём на Canvas)
-// Выход: { url }
-app.post('/api/scene', async (req, res) => {
-  try {
-    const { prompt, images, cheap } = req.body;
-    if (!prompt) throw new Error('Нет prompt');
-    const list = images ? (Array.isArray(images) ? images : [images]) : [];
-
-    let data;
-    if (list.length) {
-      if (cheap) {
-        // СЦЕНА: только фон+товар, Seedream Lite (текст потом на Canvas)
-        data = await falSync(MODELS.sceneCheap, { prompt, image_urls: list });
-      } else {
-        // КРЕАТИВ: вся карточка целиком (Seedream 4.5). resolution не передаём — Seedream его не принимает.
-        data = await falSync(MODELS.scene, { prompt, image_urls: list });
-      }
-    } else {
-      data = await falSync(MODELS.sceneGen, { prompt });
-    }
-    const url = data.images?.[0]?.url;
-    if (!url) throw new Error('Нет url: ' + JSON.stringify(data).slice(0, 200));
-    res.json({ url });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// ── 3) ВИДЕО (Vidu Q3) ───────────────────────────────────────────
-// Вход:  { imageUrl, prompt? }  imageUrl = готовая карточка (URL или data URI)
-// Выход: { url } — 5-секундный ролик
-app.post('/api/video', async (req, res) => {
-  try {
-    const { imageUrl, prompt } = req.body;
-    if (!imageUrl) throw new Error('Нет imageUrl');
-    const data = await falQueue(MODELS.video, {
-      prompt: prompt || 'Cinematic slow zoom on the product, subtle sparkle, gentle light shimmer, premium ad',
-      image_url: imageUrl,
-      duration: 5,          // фиксированно 5 секунд
-      resolution: '540p',   // дёшево (~$0.035/сек ≈ $0.18 за ролик). Дороже/чётче: '720p' или '1080p'
-      audio: false          // без звука — дешевле
-    });
-    const url = data.video?.url;
-    if (!url) throw new Error('Нет url: ' + JSON.stringify(data).slice(0, 200));
-    res.json({ url });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.get('/health', (req, res) => res.json({ ok: true, models: MODELS }));
-
-// ── 4) CLAUDE (Haiku) — прокси, ключ хранится на сервере ────────────
-app.post('/api/claude', async (req, res) => {
-  try {
-    const CLAUDE_KEY = process.env.CLAUDE_KEY;
-    if (!CLAUDE_KEY) throw new Error('CLAUDE_KEY не задан в переменных окружения Render');
-    const { model, max_tokens, messages, system } = req.body;
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': CLAUDE_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({ model: model||'claude-haiku-4-5-20251001', max_tokens: max_tokens||1500, messages, system })
-    });
-    if (!r.ok) throw new Error(await r.text());
-    res.json(await r.json());
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-
-// ── 5) ADMIN: Создать пользователя ──────────────────────────────────
-app.post('/api/admin/create-user', async (req, res) => {
-  try {
-    if (!adminAuth || !adminDb) throw new Error('Firebase Admin не настроен');
-    const { email, password, sparks, adminKey } = req.body;
-    if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Нет доступа' });
-    if (!email || !password) throw new Error('Email и пароль обязательны');
-    // Создаём пользователя в Firebase Auth
-    const user = await adminAuth.createUser({ email, password });
-    // Создаём документ в Firestore
-    await adminDb.collection('users').doc(user.uid).set({
-      email, name: email.split('@')[0], sparks: parseInt(sparks)||0,
-      plan: '', createdAt: new Date()
-    });
-    res.json({ ok: true, uid: user.uid, email });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ── 6) ADMIN: Изменить пароль пользователя ──────────────────────────
-app.post('/api/admin/update-password', async (req, res) => {
-  try {
-    if (!adminAuth) throw new Error('Firebase Admin не настроен');
-    const { uid, password, adminKey } = req.body;
-    if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Нет доступа' });
-    await adminAuth.updateUser(uid, { password });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ── 7) ADMIN: Удалить пользователя ──────────────────────────────────
-app.post('/api/admin/delete-user', async (req, res) => {
-  try {
-    if (!adminAuth || !adminDb) throw new Error('Firebase Admin не настроен');
-    const { uid, adminKey } = req.body;
-    if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Нет доступа' });
-    await adminAuth.deleteUser(uid);
-    await adminDb.collection('users').doc(uid).delete();
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.listen(3001, () => {
-  console.log('✅ Proxy (fal.ai) запущен: http://localhost:3001');
-  console.log(FAL_KEY ? '✅ FAL_KEY: OK' : '⚠️ FAL_KEY не задан — положи в .env');
-});
+</script>
+</body>
+</html>
