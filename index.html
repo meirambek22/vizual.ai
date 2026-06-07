@@ -58,6 +58,7 @@
   .spin{width:44px;height:44px;border:4px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:sp 1s linear infinite;position:absolute}
   @keyframes sp{to{transform:rotate(360deg)}}
   .carousel{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  .carousel img{max-width:100%;max-height:620px;width:auto;height:auto;border-radius:10px;box-shadow:0 18px 50px rgba(0,0,0,.5);object-fit:contain;cursor:zoom-in}
   .carousel video{max-width:100%;max-height:620px;border-radius:8px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
   .nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;background:rgba(0,0,0,.55);border:1px solid var(--line);color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;transition:.15s}
   .nav:hover{background:var(--acc);color:#1a1200}
@@ -203,10 +204,10 @@
   .r-btn{background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:.15s}
   .r-btn:hover{border-color:var(--acc2)}
   .r-btn:disabled{opacity:.4;cursor:not-allowed}
-  .preview2{flex:1;padding:24px;display:flex;flex-wrap:wrap;gap:14px;align-content:flex-start;min-height:400px}
+  .preview2{flex:1;padding:24px;display:flex;flex-wrap:wrap;gap:16px;align-content:flex-start;justify-content:center;min-height:400px}
   .preview2 .empty-state{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;color:var(--muted);gap:12px}
   .preview2 .empty-state .big{font-size:48px}
-  .preview2 img{border-radius:12px;max-width:220px;max-height:220px;object-fit:cover;border:1px solid var(--line)}
+  .preview2 img{border-radius:14px;max-width:480px;width:100%;height:auto;object-fit:contain;border:1px solid var(--line);cursor:zoom-in}
   .log2{background:var(--panel);border-top:1px solid var(--line);padding:14px 20px;font-size:12px;color:var(--muted);font-family:monospace;max-height:160px;overflow-y:auto;white-space:pre-wrap;line-height:1.6}
   .log2 .ok{color:#22c55e}
   .log2 .er{color:#ef4444}
@@ -715,6 +716,7 @@ function aRenderTable(list){
       <td><div class="a-acts">
         <input class="a-inp a-inp-lg" type="text" id="ap_${u.id}" placeholder="новый пароль">
         <button class="aqb" onclick="aChangePwd('${u.id}')">Сменить</button>
+        <button class="aqb red" onclick="aDeleteUser('${u.id}','${(u.email||'').replace(/'/g,"")}')">🗑 Удалить</button>
       </div></td>
     </tr>`;
   }).join('');
@@ -739,6 +741,14 @@ async function aChangePwd(uid){
     const r=await fetch(`${PROXY_URL}/api/admin/update-password`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({uid,password:pwd,adminKey:ADMIN_KEY})});
     const d=await r.json();if(d.error)throw new Error(d.error);
     document.getElementById('ap_'+uid).value='';aToast('✅ Пароль изменён');
+  }catch(e){aToast('Ошибка: '+e.message,true);}
+}
+async function aDeleteUser(uid,email){
+  if(!confirm(`Удалить пользователя ${email}? Это действие нельзя отменить!`))return;
+  try{
+    const r=await fetch(`${PROXY_URL}/api/admin/delete-user`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({uid,adminKey:ADMIN_KEY})});
+    const d=await r.json();if(d.error)throw new Error(d.error);
+    aToast(`✅ Удалён: ${email}`);aLoadUsers();
   }catch(e){aToast('Ошибка: '+e.message,true);}
 }
 function aOpenCreate(){
@@ -773,7 +783,7 @@ function aToast(msg,err=false){
   clearTimeout(_aToastT);_aToastT=setTimeout(()=>el.classList.remove('show'),3000);
 }
 window.aOpenCreate=aOpenCreate;window.aCloseCreate=aCloseCreate;window.aCreateUser=aCreateUser;
-window.aAdd=aAdd;window.aAddCustom=aAddCustom;window.aChangePwd=aChangePwd;
+window.aAdd=aAdd;window.aAddCustom=aAddCustom;window.aChangePwd=aChangePwd;window.aDeleteUser=aDeleteUser;
 window.aDoSearch=aDoSearch;window.aLoadUsers=aLoadUsers;
 window.vaOpenTariffs=()=>{ document.getElementById('tariffModal').style.display='flex'; };
 window.vaCloseTariffs=()=>{ document.getElementById('tariffModal').style.display='none'; };
